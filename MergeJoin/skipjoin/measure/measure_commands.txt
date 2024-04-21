@@ -1,0 +1,5 @@
+measure_jump 3 > ExpB.txt
+measure_insert ../dataset/aotpd/flight_data.txt 5000000 3 > ExpC.txt
+measure_window ../dataset/aotpd/flight_data.txt ../dataset/aotpd/select_days.txt 3 > ExpD.txt
+measure_part_join ../dataset/aotpd/flight_data_first.txt ../dataset/aotpd/flight_data_second.txt 3 > ExpE_AOTPD.txt
+measure_part_join ../dataset/cued/speed_ds_first.txt ../dataset/cued/speed_ds_second.txt 3 > ExpE_CUED.txt

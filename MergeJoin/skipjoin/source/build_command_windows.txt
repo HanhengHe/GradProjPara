@@ -1,0 +1,6 @@
+g++ measure_insert.cpp performance_measure.cpp -std=c++14 -O3 -march=native -o measure_insert.exe
+g++ measure_jump.cpp -std=c++14 -O3 -march=native -o measure_jump.exe
+g++ measure_part_join.cpp -std=c++14 -O3 -march=native -o measure_part_join.exe
+g++ measure_window.cpp -std=c++14 -O3 -march=native -o measure_window.exe
+g++ min_max.cpp -std=c++14 -O3 -march=native -o min_max.exe
+g++ tool_split.cpp -std=c++14 -O3 -march=native -o tool_split.exe
