@@ -3,10 +3,14 @@
 #include <algorithm>
 #include <future>
 #include <functional>
+#include <thread>
 
-#include <boost/asio.hpp>
-#include <boost/bind.hpp>
-#include <boost/thread/thread.hpp>
+// kinda new stuff
+#include <span>
+
+// #include <boost/asio.hpp>
+// #include <boost/bind.hpp>
+// #include <boost/thread/thread.hpp>
 
 
 template <typename T, typename Compare = std::less<T>>
@@ -17,8 +21,8 @@ void PMergeSort(std::vector<T>& arr, std::size_t n_worker, const Compare& cmp)
 		return;
 	}
 	
-	boost::asio::io_service io_service;
-	boost::asio::thread_pool thread_pool(n_worker);
+	// boost::asio::io_service io_service;
+	// boost::asio::thread_pool thread_pool(n_worker);
 
 	auto jobs_each_thread = arr.size() / n_worker;
 
@@ -111,7 +115,71 @@ T FindMedian(std::vector<T> const& m1, std::vector<T> const& m2)
 
 
 template <typename T, typename Compare>
-std::vector<T> PMerge(std::vector<T> const& lhs, std::vector<T> const& rhs, std::size_t n_worker, const Compare& cmp)
+std::vector<T> PMerge(std::vector<T> const& lhs, std::vector<T> const& rhs, std::size_t n_workers, const Compare& cmp)
+{
+	std::vector<std::thread> workers;
+	workers.reserve(n_workers);
+
+	if (lhs.empty()) {
+		return rhs;
+	}
+	else if (rhs.empty()) {
+		return lhs;
+	}
+
+	const auto z_val = lhs.size() + rhs.size();
+	auto group_size = z_val / n_workers;
+
+	// finding value v_0, .., v_n need a traverse
+	std::vector<std::size_t> left_pieces, right_pieces;
+
+	auto count = 0; 
+	auto idx = 0;
+	auto is_left = lhs.front() < rhs.front();
+	auto left_idx = 0;
+	auto right_idx = 0;
+
+	while (count < z_val) 
+	{
+		if (left_idx >= lhs.size())
+			++right_idx
+		else if (right_idx >= rhs.size())
+			++left_idx
+		else
+			lhs[left_idx] < rhs[right_idx] ? ++left_idx : ++right_idx;
+
+		if (count == idx * z_val / n_workers) {
+				left_pieces.emplace_back(left_idx);
+				right_pieces.emplace_back(right_idx);
+		}
+		count++;
+	}
+
+	assert(left_pieces.size() == right_pieces.size());  // ?
+
+	std::vector<T> res;
+	for (auto idx = 0; idx < left_pieces.size() - 1; idx++) {
+		workers.emplace_back(HighPref_Merge, lhs, rhs,
+			std::make_pair(left_pieces[idx], left_pieces[idx + 1]),
+			std::make_pair(right_pieces[idx], right_pieces[idx + 1]), 
+			res, left_pieces[idx + 1] + right_pieces[idx + 1], cmp);
+	}
+
+	for (auto& thread : workers) {
+		thread.join();
+	}
+
+	return res;
+}
+
+
+template <typename T, typename Compare>
+std::vector<T> HighPref_Merge(std::vector<T> const& lhs, std::vector<T> const& rhs, 
+	std::pair<std::size_t, std::size_t> const& l_range,
+	std::pair<std::size_t, std::size_t> const& r_range, 
+	std::vector<T>& res,
+	std::size_t const& res_starts,
+	const Compare& cmp)
 {
 	return {};
 }
