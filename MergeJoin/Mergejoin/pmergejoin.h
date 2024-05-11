@@ -174,12 +174,32 @@ std::vector<T> PMerge(std::vector<T> const& lhs, std::vector<T> const& rhs, std:
 
 
 template <typename T, typename Compare>
-std::vector<T> HighPref_Merge(std::vector<T> const& lhs, std::vector<T> const& rhs, 
+void HighPref_Merge(std::vector<T> const& lhs, std::vector<T> const& rhs, 
 	std::pair<std::size_t, std::size_t> const& l_range,
 	std::pair<std::size_t, std::size_t> const& r_range, 
 	std::vector<T>& res,
-	std::size_t const& res_starts,
+	std::size_t idx,
 	const Compare& cmp)
 {
-	return {};
+	auto lidx = l_range.first;
+	auto ridx = r_range.first;
+
+	while (lidx < l_range.second && ridx < r_range.second) {
+		if (lidx == l_range.second) {
+			res[idx++] = rhs[ridx++];
+		}
+		else if (ridx == l_range.second) {
+			res[idx++] = lhs[lidx++];
+		}
+		else {
+			if (lhs[lidx] < rhs[ridx]) {
+				res[idx++] = lhs[lidx++];
+			}
+			else {
+				res[idx++] = rhs[ridx++];
+			}
+		}
+	}
+
+	return;
 }
