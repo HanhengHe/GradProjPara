@@ -2,12 +2,15 @@
 //
 
 #include <iostream>
+#include "MergeJoin/pmergejoin.h"
 
 int main()
 {
-    std::cout << "Hello World!\n";
+    std::vector<int> arr{ 2, 3, 8, 5, 1, 4, 3 };
+    PMergeSort(arr, 1);
 }
 
+// visual studio so thoughtful <3 ¡ý
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
 // Debug program: F5 or Debug > Start Debugging menu
 
