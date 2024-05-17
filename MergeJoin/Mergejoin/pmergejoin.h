@@ -6,10 +6,43 @@
 #include <functional>
 #include <thread>
 #include <span>  // use cpp 20 pls
+#include <optional>  // cpp 17, so cpp 20 pls
+#include <type_traits>
+#include <string>
+
+
+// #define __DEBUG
+
 
 // #include <boost/asio.hpp>
 // #include <boost/bind.hpp>
 // #include <boost/thread/thread.hpp>
+
+
+// if T is an object, pls return a static one and maybe disable the copy constructor?
+template <typename T>
+T MIN()
+{
+	if (std::is_same<T, int>::value) {
+		return INT_MIN;
+	} else {
+		throw std::logic_error(std::string("Please add support to type ") + std::string(typeid(T).name()));
+	}
+}
+
+
+// if T is an object, pls return a static one and maybe disable the copy constructor?// if T is an object, pls return a static one and maybe disable the copy constructor?
+
+template <typename T>
+T MAX()
+{
+	if (std::is_same<T, int>::value) {
+		return INT_MAX;
+	}
+	else {
+		throw std::logic_error(std::string("Please add support to type ") + std::string(typeid(T).name()));
+	}
+}
 
 
 /// <summary>
@@ -20,15 +53,24 @@ template <typename T, typename Compare>
 T FindMedian(std::span<T> const& m1, std::span<T> const& m2, Compare const& cmp)
 {
 	auto less_than = [&cmp](std::span<T> const& left, std::span<T> const& right,
-						std::size_t const& lidx, std::size_t const& ridx) {
-		if (lidx >= left.size() && ridx >= right.size())
-			return false;
-		if (lidx >= left.size())
-			return false;
-		if (ridx >= right.size())
-			return true;
+						std::optional<std::size_t> const& lidx, std::optional<std::size_t> const& ridx) {
+		T lval, rval;
 
-		return cmp(left[lidx], right[ridx]);
+		if (!lidx)
+			lval = MIN<T>();
+		else if (lidx.value() >= left.size())
+			lval = MAX<T>();
+		else
+			lval = left[lidx.value()];
+
+		if (!ridx)
+			rval = MIN<T>();
+		else if (ridx.value() >= right.size())
+			rval = MAX<T>();
+		else
+			rval = right[ridx.value()];
+
+		return cmp(lval, rval);
 	};
 
 	// case median \in m1
@@ -38,12 +80,21 @@ T FindMedian(std::span<T> const& m1, std::span<T> const& m2, Compare const& cmp)
 
 	while (begin < end) {
 		auto mid = (begin + end) / 2;
-		if (less_than(m1, m2, mid, e_val - mid - 1)) {
+
+		std::optional<std::size_t> e_m_1{ std::nullopt };
+		if (e_val >= (mid + 1)) e_m_1 = e_val - mid - 1;
+
+		std::optional<std::size_t> e_m{ std::nullopt };
+		if (e_val >= mid) e_m = e_val - mid;
+
+		if (less_than(m1, m2, { mid }, e_m_1)) {
 			begin = mid + 1;
-		} else if (less_than(m2, m1, e_val - mid, mid)) {
+		} else if (less_than(m2, m1, e_m, { mid })) {
 			end = mid;
-		} else if (less_than(m2, m1, e_val - mid - 1, mid) && less_than(m1, m2, mid, e_val - mid)) {
+		} else if (less_than(m2, m1, e_m_1, { mid }) && less_than(m1, m2, { mid }, e_m)) {
 			return m1[mid];
+		} else {
+			throw std::runtime_error("FindMedian falls into wrong else statement!");
 		}
 	}
 
@@ -54,13 +105,20 @@ T FindMedian(std::span<T> const& m1, std::span<T> const& m2, Compare const& cmp)
 
 	while (begin < end) {
 		auto mid = (begin + end) / 2;
-		if (less_than(m2, m1, mid, e_val - mid - 1)) {
+
+		std::optional<std::size_t> e_m_1{ std::nullopt };
+		if (e_val >= (mid + 1)) e_m_1 = e_val - mid - 1;
+
+		std::optional<std::size_t> e_m{ std::nullopt };
+		if (e_val >= mid) e_m = e_val - mid;
+
+		if (less_than(m2, m1, { mid }, e_m_1)) {
 			begin = mid + 1;
 		}
-		else if (less_than(m1, m2, e_val - mid, mid)) {
+		else if (less_than(m1, m2, e_m, { mid })) {
 			end = mid;
 		}
-		else if (less_than(m1, m2, e_val - mid - 1, mid) && less_than(m2, m1, mid, e_val - mid)) {
+		else if (less_than(m1, m2, e_m_1, { mid }) && less_than(m2, m1, { mid }, e_m)) {
 			return m2[mid];
 		}
 	}
@@ -114,7 +172,17 @@ void HighPref_Merge(std::vector<T>& lhs, std::vector<T>& rhs,
 	auto rdist = std::distance(rbegin, std::lower_bound(
 		rbegin, rend, mid, cmp));
 
+#ifdef __DEBUG
+	HighPref_Merge(lhs, rhs,
+		std::make_pair(l_range.first, ldist),
+		std::make_pair(r_range.first, rdist),
+		res, idx, cmp);
 
+	HighPref_Merge(lhs, rhs,
+		std::make_pair(l_range.first + ldist, l_range.second - ldist),
+		std::make_pair(r_range.first + rdist, r_range.second - rdist),
+		res, idx + ldist + rdist, cmp);
+#else
 	std::thread lthread(HighPref_Merge<T, Compare>, std::ref(lhs), std::ref(rhs),
 		std::make_pair(l_range.first, ldist),
 		std::make_pair(r_range.first, rdist),
@@ -127,6 +195,7 @@ void HighPref_Merge(std::vector<T>& lhs, std::vector<T>& rhs,
 
 	lthread.join();
 	rthread.join();
+#endif // __DEBUG
 
 	return;
 }
@@ -146,14 +215,14 @@ std::vector<T> PMerge(std::vector<T>& lhs, std::vector<T>& rhs, std::size_t n_wo
 	}
 
 	const auto z_val = lhs.size() + rhs.size();
-	auto group_size = z_val / n_workers;
 
 	// finding value v_0, .., v_n need a traverse
 	std::vector<std::size_t> left_pieces, right_pieces;
+	left_pieces.emplace_back(0); 
+	right_pieces.emplace_back(0);
 
 	auto count = 0;
-	auto idx = 0;
-	auto is_left = lhs.front() < rhs.front();
+	auto idx = 1;
 	auto left_idx = 0;
 	auto right_idx = 0;
 
@@ -169,18 +238,29 @@ std::vector<T> PMerge(std::vector<T>& lhs, std::vector<T>& rhs, std::size_t n_wo
 		if (count == idx * z_val / n_workers) {
 			left_pieces.emplace_back(left_idx);
 			right_pieces.emplace_back(right_idx);
+			idx++;
 		}
 		count++;
 	}
 
+	left_pieces.emplace_back(left_idx);
+	right_pieces.emplace_back(right_idx);
+
 	assert(left_pieces.size() == right_pieces.size());  // ?
 
-	std::vector<T> res;
+	std::vector<T> res(z_val);
 	for (auto idx = 0; idx < left_pieces.size() - 1; idx++) {
+#ifdef __DEBUG
+		HighPref_Merge(lhs, rhs,
+			std::make_pair(left_pieces[idx], left_pieces[idx + 1] - left_pieces[idx]),
+			std::make_pair(right_pieces[idx], right_pieces[idx + 1] - right_pieces[idx]),
+			res, left_pieces[idx] + right_pieces[idx], cmp);
+#else
 		workers.emplace_back(std::thread(HighPref_Merge<T, Compare>, std::ref(lhs), std::ref(rhs),
 			std::make_pair(left_pieces[idx], left_pieces[idx + 1] - left_pieces[idx]),
 			std::make_pair(right_pieces[idx], right_pieces[idx + 1] - right_pieces[idx]),
-			std::ref(res), left_pieces[idx + 1] + right_pieces[idx + 1], std::ref(cmp)));
+			std::ref(res), left_pieces[idx] + right_pieces[idx], std::ref(cmp)));
+#endif // __DEBUG
 	}
 
 	for (auto& thread : workers) {
@@ -207,14 +287,15 @@ void PMergeSort(std::vector<T>& arr, std::size_t n_worker, const Compare& cmp = 
 	// split jobs
 	std::list<std::vector<T>> jobs;
 
+	auto beg = arr.begin();
 	auto it = arr.begin();
-	auto end = arr.end();
+
 	for (std::size_t count = 0; count < n_worker; count++) {  //! double check
-		auto tail = (std::size_t)(end - it) <= jobs_each_thread ? it + jobs_each_thread : end;
+		auto tail = count == n_worker - 1 ? arr.end(): std::next(it, jobs_each_thread);
 		jobs.emplace_back(it, tail);
 		// use high-pref to sort???
 		std::sort(jobs.back().begin(), jobs.back().end(), cmp);
-		it += jobs_each_thread;
+		it = tail;
 	}
 
 	std::list<std::vector<T>> res;
