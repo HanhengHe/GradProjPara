@@ -34,7 +34,8 @@
 
 void run_gap_size(std::uint32_t gap_size)
 {
-    constexpr std::uint32_t num_events = 1024 * 1024 * 64;
+    // constexpr std::uint32_t num_events = 1024 * 1024 * 64;
+    constexpr std::uint32_t num_events = 1024 * 64;
     stab_forest<std::uint32_t, vector_event_list> lhs;
     stab_forest<std::uint32_t, vector_event_list> rhs;
 
@@ -55,16 +56,16 @@ void run_gap_size(std::uint32_t gap_size)
 
     std::cerr << gap_size;
     std::cout << gap_size
-              << "\t" << measure_forward_scan(lhs, rhs)
+              // << "\t" << measure_forward_scan(lhs, rhs)
               << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_list(), stab_forward_list())
-              << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_index(), stab_forward_index())
-              << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 1u), stab_forward_check(rhs, 1u))
-              << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 2u), stab_forward_check(rhs, 2u))
-              << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 4u), stab_forward_check(rhs, 4u))
-              << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 8u), stab_forward_check(rhs, 8u))
-              << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 16u), stab_forward_check(rhs, 16u))
-              << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 32u), stab_forward_check(rhs, 32u))
-              << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 64u), stab_forward_check(rhs, 64u))
+              // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_index(), stab_forward_index())
+              // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 1u), stab_forward_check(rhs, 1u))
+              // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 2u), stab_forward_check(rhs, 2u))
+              // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 4u), stab_forward_check(rhs, 4u))
+              // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 8u), stab_forward_check(rhs, 8u))
+              // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 16u), stab_forward_check(rhs, 16u))
+              // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 32u), stab_forward_check(rhs, 32u))
+              // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 64u), stab_forward_check(rhs, 64u))
               << std::endl;
     std::cerr << std::endl;
 }
@@ -76,7 +77,7 @@ void run()
     }
 }
 
-int main(int argc, char* argv[])
+int main_skip_join(int argc, char* argv[])
 {
     if (argc != 2) {
         return 1;

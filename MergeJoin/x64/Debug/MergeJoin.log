@@ -1,1 +1,3 @@
-﻿  MergeJoin.vcxproj -> D:\workspace\CppWorkspace\MergeJoin\x64\Debug\MergeJoin.exe
+﻿  MergeJoin.cpp
+D:\workspace\CppWorkspace\MergeJoin\MergeJoin\skipjoin\source\measure_jump.cpp(102,1): warning C4715: 'main_skip_join': not all control paths return a value
+  MergeJoin.vcxproj -> D:\workspace\CppWorkspace\MergeJoin\x64\Debug\MergeJoin.exe

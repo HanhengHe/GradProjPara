@@ -23,5 +23,8 @@
     <ClInclude Include="Mergejoin\pmergejoin.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="parallelskipjoin.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

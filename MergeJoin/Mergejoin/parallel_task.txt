@@ -1,0 +1,95 @@
+SIMPLE METHOD
+Two datasets:
+    Dataset 1: very large
+        X
+    Dataset 2: small
+    
+Join with n threads
+    Divide X in n equal parts
+    X1 ... Xn
+    
+    skipjoin(X1, Dataset 2)
+    skipjoin(X2, Dataset 2)
+    skipjoin(X3, Dataset 2)
+            ....
+    skipjoin(Xn, Dataset 2)
+ 
+ 
+ALTERNATIVE METHOD 1:
+    Bruteforce
+Two datasets:
+    Dataset 1: X
+    Dataset 2: Y
+ 
+    n = s^2
+    
+    
+    X -> X1....Xs
+    Y -> Y1....Ys
+    
+    X1 join Y1
+    X1 join Y2
+    X1 join Y3
+    ...
+    X1 join Ys
+    ...
+    Xs join Y1
+    Xs join Y2
+    ...
+    X2 join Ys
+    
+ 
+ 
+ALTERNATIVE METHOD 2:
+Two datasets
+    Dataset 1: X
+    Dataset 2: Y
+ 
+    n = 2^f
+ 
+ 
+    recursive_join(f, X, Y, splitpoint_optional)
+    {
+        if f = 1:
+            Do the join of X and Y
+                // if there is a splitpoint: do a stab in the original dataset
+                // with splitpoint
+        
+        else (if f > 1):
+            m: median start time of X and Y
+        
+            then split X into Xleft and Xright with Xleft starting before m
+            then split Y into Yleft and Yright with Yleft starting before m
+        
+            recursive_join(f-1, Xleft, Yleft)
+            recursive_join(f-1, Xright, Yright, splitpoint)
+                // We also have to include everything that is in Xleft and Yleft
+                // that ends after m
+    }
+ 
+    
+    
+    
+    recursive_join_c++like(f, stabforest X,
+                              stabforest Y,
+                              iterator Xit, Xend,
+                              iterator Yit, Yend,
+                              optional  spill_over_x, spill_over_y
+ 
+    {
+        if f = 1:
+            Do the join of X and Y
+                // if there is a spill_over: do a stab in the original dataset
+                // include the data in spill_over_x and spill_over_y in the join
+        
+        else (if f > 1):
+            m: median start time of X and Y
+        
+            Xmid = X.stab_search(m, spill_over_x)
+            Ymid = T.stab_search(m, spill_over_y);
+                    
+            recursive_join(f-1, X, Y, Xit, Xmid, Yit, Ymid)
+            recursive_join(f-1, X, Y, Xmid, Xend, Ymid, Yend, spill_over_x, spill_over_y)
+                // We also have to include everything that is in Xleft and Yleft
+                // that ends after m
+    }

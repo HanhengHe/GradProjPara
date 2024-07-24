@@ -2,16 +2,16 @@
  *
  * Copyright (c) 2017 Jelle Hellings.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  * this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY JELLE HELLINGS ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
@@ -22,7 +22,7 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  */
 #ifndef INCLUDE_TEMPORAL_JOIN_HPP
 #define INCLUDE_TEMPORAL_JOIN_HPP
@@ -40,7 +40,7 @@ namespace temporal_join_details
      */
     struct join_1
     {
-        template<class Event, class OutputIterator>
+        template <class Event, class OutputIterator>
         static void join(Event lhs, Event rhs, OutputIterator output)
         {
             *output = std::make_pair(lhs, rhs);
@@ -53,7 +53,7 @@ namespace temporal_join_details
      */
     struct join_2
     {
-        template<class Event, class OutputIterator>
+        template <class Event, class OutputIterator>
         static void join(Event lhs, Event rhs, OutputIterator output)
         {
             *output = std::make_pair(rhs, lhs);
@@ -64,9 +64,9 @@ namespace temporal_join_details
      * Helper structure that will join single events with the currently set
      * range in a forward scan fashion. Single events are sent to this structure
      * via push_back operators, allowing this structure to be used in
-     * conjunction with std::back_inserter.  
+     * conjunction with std::back_inserter.
      */
-    template<class Join, class ConstIterator, class OutputIterator>
+    template <class Join, class ConstIterator, class OutputIterator>
     struct stab_result_join
     {
         using const_iterator = ConstIterator;
@@ -77,15 +77,16 @@ namespace temporal_join_details
          * Construct the helper structure by specifying the end of the range
          * and an output iterator to write join results to.
          */
-        stab_result_join(const_iterator end, output_iterator output) : iterator(end), end(end), output(output) { }
+        stab_result_join(const_iterator end, output_iterator output) : iterator(end), end(end), output(output) {}
 
         /**
          * Join the provided event with the currently set range.
          */
-        void push_back(const value_type& event)
+        void push_back(const value_type &event)
         {
             auto it = iterator;
-            while (it != end && it->start <= event.end) {
+            while (it != end && it->start <= event.end)
+            {
                 Join::join(event, *it, output);
                 ++it;
             }
@@ -112,7 +113,7 @@ namespace temporal_join_details
      * Return a stab_result_join helper structure with the specified end of the
      * range and the specified output iterator to write join results to.
      */
-    template<class Join, class ConstIterator, class OutputIterator>
+    template <class Join, class ConstIterator, class OutputIterator>
     stab_result_join<Join, ConstIterator, OutputIterator> make_stab_result_join(ConstIterator end, OutputIterator output)
     {
         return stab_result_join<Join, ConstIterator, OutputIterator>(end, output);
@@ -122,8 +123,8 @@ namespace temporal_join_details
 /**
  * Standard sweep-based forward-scan join.
  */
-template<class List, class OutputIterator>
-void forward_scan(const List& lhs, const List& rhs, OutputIterator output)
+template <class List, class OutputIterator>
+void forward_scan(const List &lhs, const List &rhs, OutputIterator output)
 {
     using namespace temporal_join_details;
 
@@ -134,13 +135,16 @@ void forward_scan(const List& lhs, const List& rhs, OutputIterator output)
     /* Join while we have not reached the end of both lists. */
     auto lit = lhs.cbegin(), lend = lhs.cend();
     auto rit = rhs.cbegin(), rend = rhs.cend();
-    while (lit != lend && rit != rend) {
-        if (lit->start <= rit->start) {
+    while (lit != lend && rit != rend)
+    {
+        if (lit->start <= rit->start)
+        {
             stab_left_rj.set_iterator(rit);
             stab_left_rj.push_back(*lit);
             ++lit;
         }
-        else {
+        else
+        {
             stab_right_rj.set_iterator(lit);
             stab_right_rj.push_back(*rit);
             ++rit;
@@ -151,9 +155,9 @@ void forward_scan(const List& lhs, const List& rhs, OutputIterator output)
 /**
  * Standard sweep-based forward-scan join with skipping.
  */
-template<class Forest, class OutputIterator, class JumpPolicyL, class JumpPolicyR>
-void forward_skip_join(const Forest& lhs, const Forest& rhs, OutputIterator output,
-                       const JumpPolicyL& policy_l, const JumpPolicyR& policy_r)
+template <class Forest, class OutputIterator, class JumpPolicyL, class JumpPolicyR>
+void forward_skip_join(const Forest &lhs, const Forest &rhs, OutputIterator output,
+                       const JumpPolicyL &policy_l, const JumpPolicyR &policy_r)
 {
     using namespace temporal_join_details;
 
@@ -166,24 +170,31 @@ void forward_skip_join(const Forest& lhs, const Forest& rhs, OutputIterator outp
     auto lend = lhs.cend();
     auto rit = rhs.stab_forward_search(std::back_inserter(stab_right_rj), policy_r);
     auto rend = rhs.cend();
-    while (lit != lend && rit != rend) {
-        if (lit->start <= rit->start) {
+    while (lit != lend && rit != rend)
+    { // parallel here?
+        if (lit->start <= rit->start)
+        {
             stab_left_rj.set_iterator(rit.get_iterator());
-            if (rit->start <= lit->end) {
+            if (rit->start <= lit->end)
+            {
                 stab_left_rj.push_back(*lit);
                 ++lit;
             }
-            else {
+            else
+            {
                 lit.stab_forward(rit->start);
             }
         }
-        else {
+        else
+        {
             stab_right_rj.set_iterator(lit.get_iterator());
-            if (lit->start <= rit->end) {
+            if (lit->start <= rit->end)
+            {
                 stab_right_rj.push_back(*rit);
                 ++rit;
             }
-            else {
+            else
+            {
                 rit.stab_forward(lit->start);
             }
         }
