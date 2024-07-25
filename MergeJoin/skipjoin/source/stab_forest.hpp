@@ -2,16 +2,16 @@
  *
  * Copyright (c) 2017 Jelle Hellings.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
- * 
+ *
  * 1. Redistributions of source code must retain the above copyright notice,
  * this list of conditions and the following disclaimer.
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
  * and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY JELLE HELLINGS ``AS IS'' AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
@@ -22,7 +22,7 @@
  * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  */
 #ifndef INCLUDE_STAB_FOREST_HPP
 #define INCLUDE_STAB_FOREST_HPP
@@ -34,18 +34,21 @@
 #include "interval.hpp"
 #include "raw_array.hpp"
 
-
 /**
  * Stab-forward policy enabling that every stab-forward operation is performed
  * exclusively using the index.
  */
-struct stab_forward_index { };
+struct stab_forward_index
+{
+};
 
 /**
  * Stab-forward policy enabling that every stab-forward operation is performed
  * exclusively using the event-list.
  */
-struct stab_forward_list { };
+struct stab_forward_list
+{
+};
 
 /**
  * Stab-forward policy enabling that every stab-forward operation is performed
@@ -54,20 +57,18 @@ struct stab_forward_list { };
  */
 struct stab_forward_check
 {
-    template<class StabForest>
-    stab_forward_check(const StabForest& forest, const std::size_t c) :
-            threshold(c * std::max<std::size_t>(1u, forest.index_height())) { }
+    template <class StabForest>
+    stab_forward_check(const StabForest &forest, const std::size_t c) : threshold(c * std::max<std::size_t>(1u, forest.index_height())) {}
 
-    stab_forward_check(const stab_forward_check& other) : threshold(other.threshold) { }
-            
+    stab_forward_check(const stab_forward_check &other) : threshold(other.threshold) {}
+
     const std::size_t threshold;
 };
-
 
 /**
  * Basic operations on event lists.
  */
-template<class EventList>
+template <class EventList>
 class basic_event_list
 {
 protected:
@@ -84,8 +85,7 @@ protected:
     /**
      * Default-constructor.
      */
-    basic_event_list() : event_list() { }
-
+    basic_event_list() : event_list() {}
 
 public:
     /**
@@ -100,7 +100,7 @@ public:
         return event_list.cbegin();
     }
 
-    /** 
+    /**
      * Return iterator to the one-past-end of the event-list.
      */
     const_iterator end() const
@@ -133,13 +133,12 @@ protected:
     event_list_type event_list;
 };
 
-
 /**
  * Use standard std::vector to represent the event-list. The event-list is
  * appended to, hence, the standard iterators are not stable. We use indices as
  * stable pointers.
  */
-template<class TimeStampType>
+template <class TimeStampType>
 class vector_event_list : public basic_event_list<std::vector<interval<TimeStampType>>>
 {
 protected:
@@ -151,7 +150,7 @@ protected:
     /**
      * Default-constructor.
      */
-    vector_event_list() : bel() { }
+    vector_event_list() : bel() {}
 
     /**
      * Return a stable pointer pointing to the same element as the provided
@@ -172,13 +171,12 @@ protected:
     }
 };
 
-
 /**
  * Use a block-list to represent the event-list. Compared to a std::vector, this
  * yields faster appends and slower traversals. The current implementation does
  * not provide the stab-forward jump-optimization.
  */
-template<class TimeStampType>
+template <class TimeStampType>
 class block_event_list : public basic_event_list<block_list<interval<TimeStampType>>>
 {
 protected:
@@ -190,7 +188,7 @@ protected:
     /**
      * Default-constructor.
      */
-    block_event_list() : bel() { }
+    block_event_list() : bel() {}
 
     /**
      * Return a stable pointer pointing to the same element as the provided
@@ -200,7 +198,7 @@ protected:
     {
         return it;
     }
-    
+
     /**
      * Return an iterator pointing to the same element as the provided
      * stable pointer.
@@ -211,12 +209,11 @@ protected:
     }
 };
 
-
 /**
  * The stab forest for the specified timestamp type and the specified underlying
  * implementation of the event-list (vector_event_list or block_event_list).
  */
-template<class TimeStampType, template<class> class EventList = vector_event_list>
+template <class TimeStampType, template <class> class EventList = vector_event_list>
 class stab_forest : public EventList<TimeStampType>
 {
 public:
@@ -230,13 +227,13 @@ public:
     using size_type = typename event_list_base::size_type;
 
     /* Forward declaration of the stab-forward helper. */
-    template<class OutputIterator, class JumpPolicy> class stab_forward_helper;
+    template <class OutputIterator, class JumpPolicy>
+    class stab_forward_helper;
 
 private:
     using event_list_base::event_list;
     using event_list_base::stabilize_iterator;
     using event_list_base::unstabilize_pointer;
-
 
 public:
     /**
@@ -244,8 +241,7 @@ public:
      */
     stab_forest() : event_list_base(), nodes(), index(),
                     tail_pointer(stabilize_iterator(event_list.cend())),
-                    min_key(std::numeric_limits<timestamp>::max()) { }
-
+                    min_key(std::numeric_limits<timestamp>::max()) {}
 
     /**
      * Append an event to the stab forest. The new event must be at-or-after, in
@@ -253,13 +249,16 @@ public:
      */
     void append_event(const event current)
     {
-        if (!event_list.empty()) {
-            if (current.start != event_list.back().start) {
+        if (!event_list.empty())
+        {
+            if (current.start != event_list.back().start)
+            {
                 build_leaf_forest_point();
             }
             event_list.emplace_back(current);
         }
-        else {
+        else
+        {
             min_key = current.start;
             event_list.emplace_back(current);
         }
@@ -275,7 +274,7 @@ public:
      * return an iterator pointing to the first event that starts strictly after
      * value.
      */
-    template<class OutputIterator>
+    template <class OutputIterator>
     const_iterator stab_search(const timestamp value, OutputIterator output) const
     {
         stab_operations<OutputIterator> operations{*this, output};
@@ -290,9 +289,9 @@ public:
      * the stabbing behavior by setting the jump policy used (index jumps with
      * a specified threshold factor or event-list jumps).
      */
-    template<class OutputIterator, class JumpPolicy>
+    template <class OutputIterator, class JumpPolicy>
     stab_forward_helper<OutputIterator, JumpPolicy> stab_forward_search(OutputIterator output,
-                                                                        const JumpPolicy& policy) const
+                                                                        const JumpPolicy &policy) const
     {
         return stab_forward_helper<OutputIterator, JumpPolicy>{*this, output, policy};
     }
@@ -355,8 +354,8 @@ private:
      */
     struct stab_tree_node
     {
-        using node_pointer = stab_tree_node*;
-        using const_node_pointer = const stab_tree_node*;
+        using node_pointer = stab_tree_node *;
+        using const_node_pointer = const stab_tree_node *;
 
         /* The navigation key and data key of this internal node.*/
         timestamp nkey;
@@ -365,7 +364,7 @@ private:
         /* The left and right child. */
         node_pointer left_ptr;
         node_pointer right_ptr;
-        
+
         /* Total height of this node. */
         size_type height;
 
@@ -397,9 +396,8 @@ private:
          * arguments are used to construct the node representing all information
          * of the forest-point (see the implementation details above)
          */
-        template<class... Args>
-        forest_point(const node_pointer replacement_node, Args&&... args) :
-                stab_tree_node{std::forward<Args>(args)...}, replacement_node(replacement_node) { }
+        template <class... Args>
+        forest_point(const node_pointer replacement_node, Args &&...args) : stab_tree_node{std::forward<Args>(args)...}, replacement_node(replacement_node) {}
 
         /* Pointer to the normal node that is set to replace this forest node
          * when this forest is merged into another forest. */
@@ -408,24 +406,24 @@ private:
 
     /* Return the begin() and end() iterators to the left-list (navigation key),
      * sorted on ascending start-time order. */
-    template<class Node>
-    static auto nll_sa_begin(Node& node) { return node.ll_raw_data.data(); }
-    template<class Node>
-    static auto nll_sa_end(Node& node) { return node.ll_raw_data.data() + node.nll_size; }
+    template <class Node>
+    static auto nll_sa_begin(Node &node) { return node.ll_raw_data.data(); }
+    template <class Node>
+    static auto nll_sa_end(Node &node) { return node.ll_raw_data.data() + node.nll_size; }
 
     /* Return the begin() and end() iterators to the left-list (data key),
      * sorted on descending end-time order. */
-    template<class Node>
-    static auto dll_ed_begin(Node& node) { return node.ll_raw_data.data() + node.nll_size; }
-    template<class Node>
-    static auto dll_ed_end(Node& node) { return node.ll_raw_data.data() + node.ll_size; }
-    
+    template <class Node>
+    static auto dll_ed_begin(Node &node) { return node.ll_raw_data.data() + node.nll_size; }
+    template <class Node>
+    static auto dll_ed_end(Node &node) { return node.ll_raw_data.data() + node.ll_size; }
+
     /* Return the begin() and end() iterators to the left-list (navigation key),
      * sorted on descending end-time order. */
-    template<class Node>
-    static auto nll_ed_begin(Node& node) { return node.ll_raw_data.data() + node.ll_size; }
-    template<class Node>
-    static auto nll_ed_end(Node& node) { return node.ll_raw_data.data() + node.ll_size + node.nll_size; }
+    template <class Node>
+    static auto nll_ed_begin(Node &node) { return node.ll_raw_data.data() + node.ll_size; }
+    template <class Node>
+    static auto nll_ed_end(Node &node) { return node.ll_raw_data.data() + node.ll_size + node.nll_size; }
 
     /**
      * Copy events in [first, last) to output that start before the specified
@@ -434,18 +432,20 @@ private:
      * not copied. Observe that these functions do not return output iterators,
      * making these functions work differently form the std::copy-family.
      */
-    template<class InIt, class OutIt>
+    template <class InIt, class OutIt>
     static InIt copy_start_asc(InIt first, InIt last, OutIt output, const timestamp v)
     {
-        while (first != last && first->start <= v) {
+        while (first != last && first->start <= v)
+        {
             *output++ = *first++;
         }
         return first;
     }
-    template<class InIt, class OutIt>
+    template <class InIt, class OutIt>
     static InIt copy_start_asc(InIt first, InIt last, OutIt output, const timestamp v, const timestamp mstart)
     {
-        while (first != last && first->start < mstart) {
+        while (first != last && first->start < mstart)
+        {
             ++first;
         }
         return copy_start_asc(first, last, output, v);
@@ -458,19 +458,22 @@ private:
      * not copied. Observe that these functions do not return output iterators,
      * making these functions work differently form the std::copy-family.
      */
-    template<class InIt, class OutIt>
+    template <class InIt, class OutIt>
     static InIt copy_end_dec(InIt first, InIt last, OutIt output, const timestamp v)
     {
-        while (first != last && first->end >= v) {
+        while (first != last && first->end >= v)
+        {
             *output++ = *first++;
         }
         return first;
     }
-    template<class InIt, class OutIt>
+    template <class InIt, class OutIt>
     static InIt copy_end_dec(InIt first, InIt last, OutIt output, const timestamp v, const timestamp mstart)
     {
-        while (first != last && first->end >= v) {
-            if (mstart <= first->start) {
+        while (first != last && first->end >= v)
+        {
+            if (mstart <= first->start)
+            {
                 *output++ = *first;
             }
             ++first;
@@ -478,21 +481,20 @@ private:
         return first;
     }
 
-
     /**
      * Query and navigate the stab-forest using the index. This will search for
      * the node for which nkey <= value <= dkey holds. This method uses
      * callbacks to perform the necessary actions on each visited forest-point
      * and stab-tree node. The following methods should be provided:
      *
-     *   op.before_trees(value, other...) is called when value is smaller or 
+     *   op.before_trees(value, other...) is called when value is smaller or
      *     equal to the smallest start-time present in the stab-forest.
      *   op.after_trees(value, other...) is called when value is larger than the
      *     largest start-time present in the stab-forest (but not necessary
      *     larger than the start-times of events in the event-list tail).
      *   op.left_child(node, value, other...) is called to indicate that the
      *     search will navigate to the left child of the specified node.
-     *   op.right_child(node, value, other...) is analogous to left_child. 
+     *   op.right_child(node, value, other...) is analogous to left_child.
      *   op.select_node(node, value, other...) is called when node is the node
      *     for which nkey <= value <= dkey holds.
      *
@@ -500,22 +502,25 @@ private:
      * when the search has finished. The other... parameters are simply passed
      * on to the callback functions.
      */
-    template<class NavigateOperations, class... Other>
+    template <class NavigateOperations, class... Other>
     void navigate_index(const timestamp value,
-                        NavigateOperations& op, Other&... other) const
+                        NavigateOperations &op, Other &...other) const
     {
         /* Value not in the tree or the left-most timestamp. */
-        if (value <= min_key) {
+        if (value <= min_key)
+        {
             op.before_trees(value, other...);
         }
 
         /* Value is indexed by the forest. */
-        else if (!index.empty() && value <= index.back().dkey)  {
+        else if (!index.empty() && value <= index.back().dkey)
+        {
             navigate_stab_tree_node(&index.front(), value, op, other...);
         }
 
         /* Value after the last start time in the last tree. */
-        else {
+        else
+        {
             op.after_trees(value, other...);
         }
     }
@@ -526,18 +531,21 @@ private:
      * on the details of the navigation operations (we only use op.left_child(),
      * op.right_child(), and op.select_node()).
      */
-    template<class NavigateOperations, class... Other>
+    template <class NavigateOperations, class... Other>
     void navigate_stab_tree_node(const_node_pointer node, timestamp value,
-                                 NavigateOperations& op, Other&... other) const
+                                 NavigateOperations &op, Other &...other) const
     {
         /* Traverse the forest until the node is found for which value is
          * active at [nkey, dkey]. */
-        while (!(node->nkey <= value && value <= node->dkey)) {
-            if (value < node->nkey) {
+        while (!(node->nkey <= value && value <= node->dkey))
+        {
+            if (value < node->nkey)
+            {
                 op.left_child(*node, value, other...);
                 node = node->left_ptr;
             }
-            else {
+            else
+            {
                 op.right_child(*node, value, other...);
                 node = node->right_ptr;
             }
@@ -550,7 +558,8 @@ private:
     /* Classes supporting stab-forest querying and navigation (implementing
      * NavigateOperations as used by the navigate_index and
      * navigate_stab_tree_node functions). */
-    template<class OutputIterator> struct stab_operations; 
+    template <class OutputIterator>
+    struct stab_operations;
     struct probe_operations;
 
     /**
@@ -567,7 +576,7 @@ private:
 
         /* Make the new leaf node and tree root. */
         auto nkey = (!index.empty()) ? index.back().dkey + 1 : key;
-        auto& leaf = nodes.emplace_back(nkey, key, nullptr, nullptr, 0u,
+        auto &leaf = nodes.emplace_back(nkey, key, nullptr, nullptr, 0u,
                                         tail_pointer, stable_end, 0u, 0u, 0u);
 
         /* Add a root for this new tree. */
@@ -575,7 +584,7 @@ private:
         auto ml_rend = std::make_reverse_iterator(first);
 
         size_type size = std::distance(first, last);
-        auto& fp = index.emplace_back(&leaf,
+        auto &fp = index.emplace_back(&leaf,
                                       nkey, key, nullptr, nullptr, 0u,
                                       tail_pointer, stable_end, 0u, size, size);
 
@@ -592,13 +601,15 @@ private:
     {
         /* Maintain the list of forest-points. Merge forest-points of equal
          * height; which must necessary be the last two forest-points. */
-        while (index.size() >= 2) {
+        while (index.size() >= 2)
+        {
             auto it = index.end();
-            auto& right_fp = *--it;
-            auto& left_fp = *--it;
-            
+            auto &right_fp = *--it;
+            auto &left_fp = *--it;
+
             /* If maintenance has finished, then relink the last two trees. */
-            if (left_fp.height != right_fp.height) {
+            if (left_fp.height != right_fp.height)
+            {
                 left_fp.right_ptr = &right_fp;
                 return;
             }
@@ -611,7 +622,7 @@ private:
     /**
      * Merge the forest-points.
      */
-    void merge_forest_points(forest_point& left, forest_point& right)
+    void merge_forest_points(forest_point &left, forest_point &right)
     {
         node_pointer root = left.replacement_node;
         node_pointer fp_node = right.replacement_node;
@@ -687,7 +698,6 @@ private:
         root->ll_raw_data.swap(raw_left_list);
     }
 
-
     /* The stab-tree nodes used in the stab-forest index. */
     block_list<stab_tree_node> nodes;
 
@@ -701,8 +711,7 @@ private:
     timestamp min_key;
 };
 
-
-/** 
+/**
  * The stab-forward helper will allow forward iteration over the stab-forest.
  * Additionally, this helper also allows one to jump forward to a provided
  * timestamp in the stab-forest. Such a jump will perform a stab with the
@@ -712,8 +721,8 @@ private:
  * stab-forest is still in scope and no additional events have been appended to
  * the stab-forest.
  */
-template<class TimeStampType, template<class> class EventList>
-template<class OutputIterator, class JumpPolicy>
+template <class TimeStampType, template <class> class EventList>
+template <class OutputIterator, class JumpPolicy>
 class stab_forest<TimeStampType, EventList>::stab_forward_helper : private JumpPolicy
 {
 private:
@@ -722,15 +731,14 @@ private:
      * stab-forest itself. After initial construction, this class can be moved
      * using the move-constructor.
      */
-    stab_forward_helper(const stab_forest_type& forest, OutputIterator output, const JumpPolicy& policy) :
-                JumpPolicy(policy),
-                forest(forest),
-                output(output),
-                event_list_it(forest.cbegin()),
-                went_left(false),
-                first_left_parent(nullptr), 
-                visited_nodes(forest.index.empty() ? 0u : forest.index_height() + 1),
-                start_asc_it(visited_nodes.size()) { }
+    stab_forward_helper(const stab_forest_type &forest, OutputIterator output, const JumpPolicy &policy) : JumpPolicy(policy),
+                                                                                                           forest(forest),
+                                                                                                           output(output),
+                                                                                                           event_list_it(forest.cbegin()),
+                                                                                                           went_left(false),
+                                                                                                           first_left_parent(nullptr),
+                                                                                                           visited_nodes(forest.index.empty() ? 0u : forest.index_height() + 1),
+                                                                                                           start_asc_it(visited_nodes.size()) {}
 
     friend stab_forest_type;
 
@@ -738,33 +746,37 @@ public:
     /**
      * Move-constructor.
      */
-    stab_forward_helper(stab_forward_helper&& other) :
-                JumpPolicy(other),
-                forest(other.forest),
-                output(std::move(output)),
-                event_list_it(other.event_list_it),
-                went_left(other.went_left),
-                first_left_parent(other.first_left_parent), 
-                visited_nodes(std::move(other.visited_nodes)),
-                start_asc_it(std::move(other.start_asc_it)) { }
+    stab_forward_helper(stab_forward_helper &&other) : JumpPolicy(other),
+                                                       forest(other.forest),
+                                                       output(std::move(output)),
+                                                       event_list_it(other.event_list_it),
+                                                       went_left(other.went_left),
+                                                       first_left_parent(other.first_left_parent),
+                                                       visited_nodes(std::move(other.visited_nodes)),
+                                                       start_asc_it(std::move(other.start_asc_it)) {}
 
     /**
      * No copy-constructor.
      */
-    stab_forward_helper(const stab_forward_helper& other) = delete;
+    stab_forward_helper(const stab_forward_helper &other) = delete;
 
     /**
      * No assignment.
      */
-    stab_forward_helper& operator=(const stab_forward_helper& other) = delete;
+    stab_forward_helper &operator=(const stab_forward_helper &other) = delete;
 
     /* Forward-iterator-like interface. */
     using value_type = event;
 
+    std::size_t size(const_iterator it) const
+    {
+        return std::distance(event_list_it, it);
+    }
+
     /**
      * Move to the next event in the event-list.
      */
-    auto& operator++()
+    auto &operator++()
     {
         ++event_list_it;
         return *this;
@@ -773,24 +785,32 @@ public:
     /**
      * Read the current event in the event-list.
      */
-    const value_type& operator*() const
+    const value_type &operator*() const
     {
         return *event_list_it;
     }
-    const value_type* operator->() const
+    const value_type *operator->() const
     {
         return &*event_list_it;
-    }    
+    }
+
+    /**
+     * visit event list by index
+     */
+    const timestamp operator[](std::size_t const &idx) const
+    {
+        return std::next(event_list_it, idx)->start;
+    }
 
     /**
      * Iterator comparisons (one can use a normal forest.end() as the end of the
      * event-list).
      */
-    bool operator==(const const_iterator& other) const
+    bool operator==(const const_iterator &other) const
     {
         return event_list_it == other;
     }
-    bool operator!=(const const_iterator& other) const
+    bool operator!=(const const_iterator &other) const
     {
         return event_list_it != other;
     }
@@ -816,10 +836,28 @@ public:
         policy_stab_forward(value, *this);
     }
 
+    /**
+     * Return subspan no safety check
+     */
+    stab_forward_helper& subspan(const_iterator head) const
+    {
+        stab_forward_helper helper(forest, output, *this);
+        helper.event_list_it = head;
+        return helper;
+    }
+
+    /**
+     * Return forest.stab_search, see stab_forest::stab_search
+     */
+    template <class OutputIterator>
+    const_iterator stab_search(const timestamp value, OutputIterator output) const
+    {
+        return forest.stab_search(value, output);
+    }
 
 private:
     /* The underlying stab-forest. */
-    const stab_forest_type& forest;
+    const stab_forest_type &forest;
 
     /* The output iterator where stab results are written to. */
     OutputIterator output;
@@ -849,36 +887,35 @@ private:
      * track of the first event in the left-list (ordered on ascending
      * start-time) that we have not yet outputted by storing an iterator
      * pointing to this first event in start_asc_it[i]. */
-    std::vector<const event*> start_asc_it;
+    std::vector<const event *> start_asc_it;
 
-    
     /**
      * Jump policy based choice of answering the stab-forward query.
      */
-    void policy_stab_forward(const timestamp value, const stab_forward_index&)
+    void policy_stab_forward(const timestamp value, const stab_forward_index &)
     {
         index_stab_forward(value);
     }
 
-    void policy_stab_forward(const timestamp value, const stab_forward_list&)
+    void policy_stab_forward(const timestamp value, const stab_forward_list &)
     {
         list_stab_forward(value);
     }
 
-    void policy_stab_forward(const timestamp value, const stab_forward_check&)
+    void policy_stab_forward(const timestamp value, const stab_forward_check &)
     {
         auto end = forest.cend();
         size_type d = std::distance(event_list_it, end);
-        if (d <= this->threshold || value <= event_list_it[this->threshold].start) {
+        if (d <= this->threshold || value <= event_list_it[this->threshold].start)
+        {
             list_stab_forward(value);
         }
-        else {
+        else
+        {
             index_stab_forward(value);
         }
     }
 
-
-    
     /**
      * Perform stab-forward using the index.
      */
@@ -887,46 +924,52 @@ private:
         went_left = false;
 
         /* We have not yet visited anything, hence, initialize a stab. */
-        if (first_left_parent == nullptr) {
-            if (event_list_it == forest.cbegin()) {
+        if (first_left_parent == nullptr)
+        {
+            if (event_list_it == forest.cbegin())
+            {
                 forest.navigate_index(value, *this);
             }
-            else {
+            else
+            {
                 forest.navigate_index(value, *this, event_list_it->start);
             }
         }
 
         /* Continue after all data collected during the previous stab. */
-        else {
+        else
+        {
             auto start_at_after = event_list_it->start;
 
             /* Continue stabbing the tree. */
-            if (value <= forest.index.back().dkey) {
+            if (value <= forest.index.back().dkey)
+            {
                 forest.navigate_stab_tree_node(first_left_parent, value, *this, start_at_after);
             }
 
             /* We will not end up in the tree, jump out of the tree. */
-            else {
+            else
+            {
                 after_trees(value, start_at_after);
             }
         }
     }
 
-    
     /**
      * Perform stab-forward using the event-list.
      */
     void list_stab_forward(const timestamp value)
     {
         auto end = forest.cend();
-        while ((event_list_it != end) && (event_list_it->start <= value)) {
-            if (value <= event_list_it->end) {
+        while ((event_list_it != end) && (event_list_it->start <= value))
+        {
+            if (value <= event_list_it->end)
+            {
                 *output++ = *event_list_it;
             }
             ++event_list_it;
         }
     }
-
 
     /* The stab_forward_helper uses the navigate_index and
      * navigate_stab_tree_node methods for performing the underlying stab-forest
@@ -944,26 +987,29 @@ private:
      * determine if we went left or right at a given node (and to eliminate
      * unnecessary left-list traversals when navigating to a right child). */
 
-    template<class... Other>
+    template <class... Other>
     void before_trees(const timestamp value, Other... other)
     {
         event_list_it = copy_start_asc(event_list_it, forest.event_list.cend(),
                                        output, value, other...);
     }
 
-    template<class... Other>
+    template <class... Other>
     void after_trees(const timestamp value, Other... other)
     {
         /* Search stab results in the max-lists of tree roots. */
-        if (!forest.index.empty()) {
+        if (!forest.index.empty())
+        {
             /* If we have not yet visited any trees in the forest, then we visit
              * all of them. */
-            if (first_left_parent == nullptr) {
+            if (first_left_parent == nullptr)
+            {
                 first_left_parent = &forest.index.front();
             }
 
             /* Visit the trees. */
-            while (first_left_parent != nullptr) {
+            while (first_left_parent != nullptr)
+            {
                 right_child(*first_left_parent, value, other...);
                 first_left_parent = first_left_parent->right_ptr;
             }
@@ -975,10 +1021,12 @@ private:
 
         /* See if we need to include the event-list tail. */
         auto tail_begin = forest.unstabilize_pointer(forest.tail_pointer);
-        if (!forest.empty() && (value < forest.event_list.back().start)) {
+        if (!forest.empty() && (value < forest.event_list.back().start))
+        {
             event_list_it = tail_begin;
         }
-        else {
+        else
+        {
             auto rbegin = std::make_reverse_iterator(forest.event_list.cend());
             auto rend = std::make_reverse_iterator(tail_begin);
             copy_end_dec(rbegin, rend, output, value, other...);
@@ -986,12 +1034,13 @@ private:
         }
     }
 
-    template<class... Other>
-    void left_child(const stab_tree_node& node, const timestamp value, Other... other)
+    template <class... Other>
+    void left_child(const stab_tree_node &node, const timestamp value, Other... other)
     {
         /* Set the first_left_parent if we did not yet navigate to a left child
          * during this stab-forward operation. */
-        if (!went_left) {
+        if (!went_left)
+        {
             went_left = true;
             first_left_parent = &node;
         }
@@ -999,7 +1048,8 @@ private:
         /* If we have not yet visited this node, then initialize the left-list
          * iterator to point to the first event. */
         auto begin = nll_sa_begin(node);
-        if (visited_nodes[node.height] != &node) {
+        if (visited_nodes[node.height] != &node)
+        {
             visited_nodes[node.height] = &node;
             start_asc_it[node.height] = begin;
         }
@@ -1009,7 +1059,7 @@ private:
                                                    output, value, other...);
     }
 
-    void right_child(const stab_tree_node& node, timestamp value)
+    void right_child(const stab_tree_node &node, timestamp value)
     {
         /* This must be the first stab. Hence, we did not navigate to the right
          * child yet. Process the left-list ordered on descending end-times. */
@@ -1018,27 +1068,30 @@ private:
         visited_nodes[node.height] = &node;
     }
 
-    void right_child(const stab_tree_node& node, timestamp value, const timestamp start_at_after)
+    void right_child(const stab_tree_node &node, timestamp value, const timestamp start_at_after)
     {
         /* This is not the first stab. If we did navigate to the left child of
          * this node previously and did not yet traverse all possible events in
          * that left-list, then we need to process the left-list ordered on
          * descending end-times once. */
         visited_nodes[node.height] = &node;
-        if (start_at_after <= node.dkey) {
+        if (start_at_after <= node.dkey)
+        {
             copy_end_dec(dll_ed_begin(node), dll_ed_end(node), output, value, start_at_after);
         }
-        if (node.nkey != 0 && (start_at_after < node.nkey - 1)) {
+        if (node.nkey != 0 && (start_at_after < node.nkey - 1))
+        {
             copy_end_dec(nll_ed_begin(node), nll_ed_end(node), output, value, start_at_after);
         }
     }
 
-    void select_node(const stab_tree_node& node, const timestamp value)
+    void select_node(const stab_tree_node &node, const timestamp value)
     {
         /* This must be the first stab. Hence, we did not navigate to the right
          * child yet. Process the left-list ordered on descending end-times. */
         visited_nodes[node.height] = &node;
-        if (value == node.dkey) {
+        if (value == node.dkey)
+        {
             copy_end_dec(dll_ed_begin(node), dll_ed_end(node), output, value);
         }
         copy_end_dec(nll_ed_begin(node), nll_ed_end(node), output, value);
@@ -1046,18 +1099,20 @@ private:
                                             : forest.unstabilize_pointer(node.data_end);
     }
 
-    template<class... Other>
-    void select_node(const stab_tree_node& node, const timestamp value, const timestamp start_at_after)
+    template <class... Other>
+    void select_node(const stab_tree_node &node, const timestamp value, const timestamp start_at_after)
     {
         /* This is not the first stab. If we did navigate to the left child of
          * this node previously and did not yet traverse all possible events in
          * that left-list, then we need to process the left-list ordered on
          * descending end-times once. */
         visited_nodes[node.height] = &node;
-        if (value == node.dkey) {
+        if (value == node.dkey)
+        {
             copy_end_dec(dll_ed_begin(node), dll_ed_end(node), output, value, start_at_after);
         }
-        if (node.nkey != 0 && (start_at_after < node.nkey - 1)) {
+        if (node.nkey != 0 && (start_at_after < node.nkey - 1))
+        {
             copy_end_dec(nll_ed_begin(node), nll_ed_end(node), output, value, start_at_after);
         }
         event_list_it = (value < node.dkey) ? forest.unstabilize_pointer(node.data_begin)
@@ -1065,15 +1120,14 @@ private:
     }
 };
 
-
 /**
  * The navigate_index callback structure used by stab_search.
  */
-template<class TimeStampType, template<class> class EventList>
-template<class OutputIterator>
+template <class TimeStampType, template <class> class EventList>
+template <class OutputIterator>
 struct stab_forest<TimeStampType, EventList>::stab_operations
 {
-    const stab_forest_type& forest;
+    const stab_forest_type &forest;
     OutputIterator output;
     const_iterator next_it;
 
@@ -1085,16 +1139,19 @@ struct stab_forest<TimeStampType, EventList>::stab_operations
     void after_trees(const timestamp value)
     {
         /* Search stab results in the max-lists of tree roots. */
-        for (auto& fp : forest.index) {
+        for (auto &fp : forest.index)
+        {
             right_child(fp, value);
         }
 
         /* See if we need to include the event-list tail. */
         auto tail_begin = forest.unstabilize_pointer(forest.tail_pointer);
-        if (!forest.empty() && (value < forest.event_list.back().start)) {
+        if (!forest.empty() && (value < forest.event_list.back().start))
+        {
             next_it = tail_begin;
         }
-        else {
+        else
+        {
             auto rbegin = std::make_reverse_iterator(forest.event_list.cend());
             auto rend = std::make_reverse_iterator(tail_begin);
             copy_end_dec(rbegin, rend, output, value);
@@ -1102,20 +1159,21 @@ struct stab_forest<TimeStampType, EventList>::stab_operations
         }
     }
 
-    void left_child(const stab_tree_node& node, const timestamp value)
+    void left_child(const stab_tree_node &node, const timestamp value)
     {
         copy_start_asc(nll_sa_begin(node), nll_sa_end(node), output, value);
     }
 
-    void right_child(const stab_tree_node& node, timestamp value)
+    void right_child(const stab_tree_node &node, timestamp value)
     {
         copy_end_dec(dll_ed_begin(node), dll_ed_end(node), output, value);
         copy_end_dec(nll_ed_begin(node), nll_ed_end(node), output, value);
     }
 
-    void select_node(const stab_tree_node& node, const timestamp value)
+    void select_node(const stab_tree_node &node, const timestamp value)
     {
-        if (value == node.dkey) {
+        if (value == node.dkey)
+        {
             copy_end_dec(dll_ed_begin(node), dll_ed_end(node), output, value);
         }
         copy_end_dec(nll_ed_begin(node), nll_ed_end(node), output, value);
@@ -1123,5 +1181,6 @@ struct stab_forest<TimeStampType, EventList>::stab_operations
                                       : forest.unstabilize_pointer(node.data_end);
     }
 };
+
 
 #endif

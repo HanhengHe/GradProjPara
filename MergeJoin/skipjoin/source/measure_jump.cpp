@@ -31,6 +31,7 @@
 #include "dataset.hpp"
 #include "stab_forest.hpp"
 #include "measure_join.hpp"
+#include "parallelskipjoin.h"
 
 void run_gap_size(std::uint32_t gap_size)
 {
@@ -54,10 +55,12 @@ void run_gap_size(std::uint32_t gap_size)
         }
     }
 
+    std::size_t f = 2;
+
     std::cerr << gap_size;
     std::cout << gap_size
               // << "\t" << measure_forward_scan(lhs, rhs)
-              << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_list(), stab_forward_list())
+              << "\t" << measure_parallel_skip_join(f, lhs, rhs, stab_forward_list(), stab_forward_list())
               // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_index(), stab_forward_index())
               // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 1u), stab_forward_check(rhs, 1u))
               // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 2u), stab_forward_check(rhs, 2u))

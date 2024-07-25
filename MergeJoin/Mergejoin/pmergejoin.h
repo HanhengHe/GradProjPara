@@ -13,7 +13,7 @@
 
 // #define __DEBUG
 
-
+#if 0
 /// <summary>
 /// not finished
 /// </summary>
@@ -86,7 +86,7 @@ T find_median(std::span<T> const m1, std::span<T> const m2)
 		}
 	}
 
-	return FindMedian(m2, m1, cmp);
+	return find_median(m2, m1);
 }
 
 
@@ -195,8 +195,8 @@ void HighPref_Merge(std::vector<T> &lhs, std::vector<T> &rhs,
 	return;
 }
 
-template <typename T, typename Compare>
-std::vector<T> PMerge(std::vector<T> &lhs, std::vector<T> &rhs, std::size_t n_workers, const Compare &cmp)
+template <typename T>
+std::vector<T> PMerge(std::vector<T> &lhs, std::vector<T> &rhs, std::size_t n_workers)
 {
 	std::vector<std::thread> workers;
 	workers.reserve(n_workers);
@@ -229,7 +229,7 @@ std::vector<T> PMerge(std::vector<T> &lhs, std::vector<T> &rhs, std::size_t n_wo
 		else if (right_idx >= rhs.size())
 			++left_idx;
 		else
-			cmp(lhs[left_idx], rhs[right_idx]) ? ++left_idx : ++right_idx;
+			lhs[left_idx] < rhs[right_idx] ? ++left_idx : ++right_idx;
 
 		if (count == idx * z_val / n_workers)
 		{
@@ -285,7 +285,7 @@ void PMergeSort(Dataset& dat, std::size_t n_worker, const Compare &cmp = Compare
 	std::size_t jobs_each_thread = dat.size() / n_worker;
 
 	// split jobs
-	std::list<std::vector<T>> jobs;
+	std::list<Dataset> jobs;
 
 	auto beg = dat.begin();
 	auto it = dat.begin();
@@ -299,7 +299,7 @@ void PMergeSort(Dataset& dat, std::size_t n_worker, const Compare &cmp = Compare
 		it = tail;
 	}
 
-	std::list<std::vector<T>> res;
+	std::list<Dataset> res;
 
 	while (jobs.size() >= 2)
 	{
@@ -327,3 +327,4 @@ void PMergeSort(Dataset& dat, std::size_t n_worker, const Compare &cmp = Compare
 	dat = jobs.front(); //! copy???
 	return;
 }
+#endif

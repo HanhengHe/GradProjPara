@@ -68,6 +68,24 @@ measure_forward_skip_join(const StabForest& lhs, const StabForest& rhs,
     return duration_cast<milliseconds>(end - start).count();
 }
 
+template<class StabForest, class JumpPolicyL, class JumpPolicyR>
+typename std::chrono::milliseconds::rep
+measure_parallel_skip_join(const size_t f, const StabForest& lhs, const StabForest& rhs,
+    const JumpPolicyL& policy_l, const JumpPolicyR& policy_r)
+{
+    using namespace std::chrono;
+    using event = typename StabForest::event;
+
+    std::vector<std::pair<event, event>> output;
+    auto output_it = std::back_inserter(output);
+
+    auto start = high_resolution_clock::now();
+    parallel_join(f, lhs, rhs, output_it, policy_l, policy_r);
+    auto end = high_resolution_clock::now();
+    std::cerr << '\t' << output.size();
+    return duration_cast<milliseconds>(end - start).count();
+}
+
 template<class StabForest, class WindowIt, class JumpPolicy>
 typename std::chrono::milliseconds::rep
 measure_multi_window(const StabForest& sf, const WindowIt first, const WindowIt last, const JumpPolicy& policy)
