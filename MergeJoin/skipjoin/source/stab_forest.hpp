@@ -837,16 +837,6 @@ public:
     }
 
     /**
-     * Return subspan no safety check
-     */
-    stab_forward_helper& subspan(const_iterator head) const
-    {
-        stab_forward_helper helper(forest, output, *this);
-        helper.event_list_it = head;
-        return helper;
-    }
-
-    /**
      * Return forest.stab_search, see stab_forest::stab_search
      */
     template <class OutputIterator>

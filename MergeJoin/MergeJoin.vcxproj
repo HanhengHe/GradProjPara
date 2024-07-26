@@ -134,6 +134,8 @@
     <ClCompile Include="MergeJoin.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="ctpl.h" />
+    <ClInclude Include="ctpl_stl.h" />
     <ClInclude Include="Mergejoin\pmergejoin.h" />
     <ClInclude Include="parallelskipjoin.h" />
   </ItemGroup>

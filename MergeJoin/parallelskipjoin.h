@@ -1,4 +1,10 @@
 #pragma once
+
+#include <queue>
+#include <thread>
+#include "ctpl.h"
+#include <mutex>
+
 #include "skipjoin/source/stab_forest.hpp"
 #include "skipjoin/source/temporal_join.hpp"
 
@@ -16,7 +22,7 @@ void partial_forward_skip_join(auto& lhelper, auto& rhelper, auto lit, auto lend
 	auto stab_right_rj = make_stab_result_join<join_2>(lend, output);
 
 	while (lit != lend && rit != rend)
-	{ // parallel here?
+	{
 		if (lit->start <= rit->start)
 		{
 			stab_left_rj.set_iterator(rit);
@@ -45,6 +51,35 @@ void partial_forward_skip_join(auto& lhelper, auto& rhelper, auto lit, auto lend
 		}
 	}
 }
+
+
+/**
+ * Different tasks use the same dispatcher?
+ */
+class JoinTaskConsumer
+{
+public:
+	JoinTaskConsumer(std::size_t num_threads) 
+		: _p(ctpl::thread_pool((int)num_threads)){}
+
+	JoinTaskConsumer(const JoinTaskConsumer&) = delete;
+	JoinTaskConsumer(JoinTaskConsumer&&) = delete;
+	
+	template <typename OutputIterator, typename JumpPolicyL, typename JumpPolicyR>
+	void append(auto& lhelper, auto& rhelper, auto lit, auto lend, auto rit, auto rend,
+		OutputIterator output, const JumpPolicyL& policy_l, const JumpPolicyR& policy_r)
+	{
+		_p.push([&lhelper, &rhelper, &policy_l, &policy_r, lit, lend, rit, rend, output](int /*id*/) {
+			partial_forward_skip_join(lhelper, rhelper, lit, lend, rit, rend, output, policy_l, policy_r);
+		});
+	}
+
+private:
+	ctpl::thread_pool _p;
+};
+
+
+static std::shared_ptr<JoinTaskConsumer> join_task_consumer;
 
 
 /// <summary>
@@ -130,11 +165,16 @@ template <typename OutputIterator, typename JumpPolicyL, typename JumpPolicyR>
 void recursive_join(std::size_t const f, auto& lhelper, auto& rhelper, auto lit, auto lend, auto rit, auto rend,
 	OutputIterator output, const JumpPolicyL& policy_l, const JumpPolicyR& policy_r)
 {
+	if (lit == lend && rit == rend) {
+		return;
+	}
+
 	if (f == 1) {
 		// Do the join of X and Y
 		// if there is a spill_over: do a stab in the original dataset
 		// include the data in spill_over_x and spill_over_y in the join
-		partial_forward_skip_join<OutputIterator, JumpPolicyL, JumpPolicyR>(lhelper, rhelper, lit, lend, rit, rend, output, policy_l, policy_r);
+		// partial_forward_skip_join<OutputIterator, JumpPolicyL, JumpPolicyR>(lhelper, rhelper, lit, lend, rit, rend, output, policy_l, policy_r);
+		join_task_consumer->append<OutputIterator, JumpPolicyL, JumpPolicyR>(lhelper, rhelper, lit, lend, rit, rend, output, policy_l, policy_r);
 	}
 	else {
 		using namespace temporal_join_details;
@@ -148,16 +188,23 @@ void recursive_join(std::size_t const f, auto& lhelper, auto& rhelper, auto lit,
 		auto rmid = rhelper.stab_search(m, /*spill_over_y*/std::back_inserter(stab_right_rj));
 
 		recursive_join<OutputIterator, JumpPolicyL, JumpPolicyR>(f - 1, lhelper, rhelper, lit, lmid, rit, rmid, output, policy_l, policy_r);
+		recursive_join<OutputIterator, JumpPolicyL, JumpPolicyR>(f - 1, lhelper, rhelper, lit, lmid, rmid, rend, output, policy_l, policy_r);
+		// ?
 		recursive_join<OutputIterator, JumpPolicyL, JumpPolicyR>(f - 1, lhelper, rhelper, lmid, lend, rmid, rend, output, policy_l, policy_r);
+		recursive_join<OutputIterator, JumpPolicyL, JumpPolicyR>(f - 1, lhelper, rhelper, lmid, lend, rit, rmid, output, policy_l, policy_r);
 		// that ends after m
 	}
 };
 
 
 template <typename Forest, typename OutputIterator, typename JumpPolicyL, typename JumpPolicyR>
-void parallel_join(std::size_t const f, Forest const& lhs, Forest const& rhs,
+void parallel_join(std::size_t n_threads, std::size_t const f, Forest const& lhs, Forest const& rhs,
 	OutputIterator output, const JumpPolicyL& policy_l, const JumpPolicyR& policy_r)
 {
+	if (!join_task_consumer) {
+		join_task_consumer = std::make_shared<JoinTaskConsumer>(n_threads);
+	}
+
 	using namespace temporal_join_details;
 
 	auto stab_left_rj = make_stab_result_join<join_1>(rhs.cend(), output);

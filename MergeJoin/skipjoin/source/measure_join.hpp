@@ -70,7 +70,7 @@ measure_forward_skip_join(const StabForest& lhs, const StabForest& rhs,
 
 template<class StabForest, class JumpPolicyL, class JumpPolicyR>
 typename std::chrono::milliseconds::rep
-measure_parallel_skip_join(const size_t f, const StabForest& lhs, const StabForest& rhs,
+measure_parallel_skip_join(const size_t n_threads, const size_t f, const StabForest& lhs, const StabForest& rhs,
     const JumpPolicyL& policy_l, const JumpPolicyR& policy_r)
 {
     using namespace std::chrono;
@@ -80,7 +80,7 @@ measure_parallel_skip_join(const size_t f, const StabForest& lhs, const StabFore
     auto output_it = std::back_inserter(output);
 
     auto start = high_resolution_clock::now();
-    parallel_join(f, lhs, rhs, output_it, policy_l, policy_r);
+    parallel_join(n_threads, f, lhs, rhs, output_it, policy_l, policy_r);
     auto end = high_resolution_clock::now();
     std::cerr << '\t' << output.size();
     return duration_cast<milliseconds>(end - start).count();
