@@ -36,7 +36,7 @@
 void run_gap_size(std::uint32_t gap_size)
 {
     // constexpr std::uint32_t num_events = 1024 * 1024 * 64;
-    constexpr std::uint32_t num_events = 1024 * 64;
+    constexpr std::uint32_t num_events = 1024;
     stab_forest<std::uint32_t, vector_event_list> lhs;
     stab_forest<std::uint32_t, vector_event_list> rhs;
 
@@ -61,6 +61,7 @@ void run_gap_size(std::uint32_t gap_size)
     std::cerr << gap_size;
     std::cout << gap_size
               // << "\t" << measure_forward_scan(lhs, rhs)
+              // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_list(), stab_forward_list())
               << "\t" << measure_parallel_skip_join(n_threads, f, lhs, rhs, stab_forward_list(), stab_forward_list())
               // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_index(), stab_forward_index())
               // << "\t" << measure_forward_skip_join(lhs, rhs, stab_forward_check(lhs, 1u), stab_forward_check(rhs, 1u))

@@ -296,6 +296,13 @@ public:
         return stab_forward_helper<OutputIterator, JumpPolicy>{*this, output, policy};
     }
 
+    template <class OutputIterator, class JumpPolicy>
+    std::shared_ptr<stab_forward_helper<OutputIterator, JumpPolicy>> stab_forward_search_shared(OutputIterator output,
+        const JumpPolicy& policy) const
+    {
+        return std::shared_ptr<stab_forward_helper<OutputIterator, JumpPolicy>>(new stab_forward_helper<OutputIterator, JumpPolicy>(*this, output, policy));
+    }
+
     /**
      * Return the hieght of the index.
      */
@@ -836,6 +843,11 @@ public:
         policy_stab_forward(value, *this);
     }
 
+    void stab_forward(const timestamp value, const_iterator it)
+    {
+        policy_stab_forward(value, *this, it);
+    }
+
     /**
      * Return forest.stab_search, see stab_forest::stab_search
      */
@@ -882,54 +894,69 @@ private:
     /**
      * Jump policy based choice of answering the stab-forward query.
      */
-    void policy_stab_forward(const timestamp value, const stab_forward_index &)
+    void policy_stab_forward(const timestamp value, const stab_forward_index&)
     {
-        index_stab_forward(value);
+        index_stab_forward(value, &event_list_it);
     }
 
-    void policy_stab_forward(const timestamp value, const stab_forward_list &)
+    void policy_stab_forward(const timestamp value, const stab_forward_index&, const_iterator it)
     {
-        list_stab_forward(value);
+        index_stab_forward(value, &it);
     }
 
-    void policy_stab_forward(const timestamp value, const stab_forward_check &)
+    void policy_stab_forward(const timestamp value, const stab_forward_list&)
+    {
+        list_stab_forward(value, &event_list_it);
+    }
+
+    void policy_stab_forward(const timestamp value, const stab_forward_list&, const_iterator it)
+    {
+        list_stab_forward(value, &it);
+    }
+
+    void policy_stab_forward(const timestamp value, const stab_forward_check& c)
+    {
+        policy_stab_forward(value, c, &event_list_it);
+    }
+
+    void policy_stab_forward(const timestamp value, const stab_forward_check&, const_iterator* it)
     {
         auto end = forest.cend();
-        size_type d = std::distance(event_list_it, end);
-        if (d <= this->threshold || value <= event_list_it[this->threshold].start)
+        size_type d = std::distance(it, end);
+        if (d <= this->threshold || value <= it[this->threshold].start)
         {
-            list_stab_forward(value);
+            list_stab_forward(value, &it);
         }
         else
         {
-            index_stab_forward(value);
+            index_stab_forward(value, &it);
         }
     }
 
     /**
      * Perform stab-forward using the index.
      */
-    void index_stab_forward(const timestamp value)
+    void index_stab_forward(const timestamp value, const_iterator* it)
     {
         went_left = false;
 
         /* We have not yet visited anything, hence, initialize a stab. */
         if (first_left_parent == nullptr)
         {
-            if (event_list_it == forest.cbegin())
+            if (*it == forest.cbegin())
             {
                 forest.navigate_index(value, *this);
             }
             else
             {
-                forest.navigate_index(value, *this, event_list_it->start);
+                forest.navigate_index(value, *this, (*it)->start);
             }
         }
 
         /* Continue after all data collected during the previous stab. */
         else
         {
-            auto start_at_after = event_list_it->start;
+            auto start_at_after = (*it)->start;
 
             /* Continue stabbing the tree. */
             if (value <= forest.index.back().dkey)
@@ -948,16 +975,16 @@ private:
     /**
      * Perform stab-forward using the event-list.
      */
-    void list_stab_forward(const timestamp value)
+    void list_stab_forward(const timestamp value, const_iterator* it)
     {
         auto end = forest.cend();
-        while ((event_list_it != end) && (event_list_it->start <= value))
+        while (((*it) != end) && ((*it)->start <= value))
         {
-            if (value <= event_list_it->end)
+            if (value <= (*it)->end)
             {
-                *output++ = *event_list_it;
+                *output++ = **it;
             }
-            ++event_list_it;
+            it->operator++();
         }
     }
 
