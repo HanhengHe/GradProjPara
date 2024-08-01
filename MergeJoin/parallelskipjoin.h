@@ -15,13 +15,12 @@
 /**
  * Standard sweep-based forward-scan join with skipping.
  */
-void partial_forward_skip_join(auto lhelper, auto rhelper, auto const _lit, auto const _lend, auto const _rit, auto const _rend, auto output)
+void partial_forward_skip_join(auto lhelper, auto rhelper, auto lit, auto lend, auto rit, auto rend, auto output, std::mutex* output_lock)
 {
-	if (_lit == _lend || _rit == _rend) {
+	if (lit == lend || rit == rend) {
 		return;
 	}
 
-	auto lit = _lit; auto rit = _rit; auto lend = _lend; auto rend = _rend;
 	using namespace temporal_join_details;
 
 	auto stab_left_rj = make_stab_result_join<join_1>(rend, output);
@@ -34,43 +33,45 @@ void partial_forward_skip_join(auto lhelper, auto rhelper, auto const _lit, auto
 			stab_left_rj.set_iterator(rit);
 			if (rit->start <= lit->end)
 			{
+				const std::lock_guard<std::mutex> lock(*output_lock);
 				stab_left_rj.push_back(*lit);
+				++lit;
 			}
 			else
 			{
-				lhelper->stab_forward(rit->start);
+				lhelper->stab_forward(rit->start, &lit);
 			}
-			++lit;
 		}
 		else
 		{
 			stab_right_rj.set_iterator(lit);
 			if (lit->start <= rit->end)
 			{
+				const std::lock_guard<std::mutex> lock(*output_lock);
 				stab_right_rj.push_back(*rit);
+				++rit;
 			}
 			else
 			{
-				rhelper->stab_forward(lit->start);
+				rhelper->stab_forward(lit->start, &rit);
 			}
-			++rit;
 		}
 	}
 }
 
 
-void spill_over_join(auto const _lit, auto const _lend, auto const _rit, auto const _rend, auto output)
+void spill_over_join(auto lit, auto lend, auto rit, auto rend, auto output, std::mutex* output_lock)
 {// check if rhs is sorted on start time.
-	if (_lit == _lend || _rit == _rend) {
+	if (lit == lend || rit == rend) {
 		return;
 	}
 
-	auto lit = _lit; auto rit = _rit; auto lend = _lend; auto rend = _rend;
 	using namespace temporal_join_details;
 
 	auto stab_rj = make_stab_result_join<join_1>(rend, output);
 	stab_rj.set_iterator(rit);
 
+	const std::lock_guard<std::mutex> lock(*output_lock);
 	while (lit != lend)
 	{
 		stab_rj.push_back(*lit);
@@ -79,41 +80,31 @@ void spill_over_join(auto const _lit, auto const _lend, auto const _rit, auto co
 }
 
 
-/**
- * Different tasks use the same dispatcher?
- */
-class JoinTaskConsumer
+class JoinTaskHandler {
+public:
+	virtual void append_task(std::function<void(int)>&&) = 0;
+	virtual void join() = 0;
+};
+
+
+class ThreadPoolHandler : public JoinTaskHandler
 {
 public:
-	JoinTaskConsumer(std::size_t num_threads) 
+	ThreadPoolHandler(std::size_t num_threads)
 		: _p(ctpl::thread_pool((int)num_threads)){}
 
-	JoinTaskConsumer(const JoinTaskConsumer&) = delete;
-	JoinTaskConsumer(JoinTaskConsumer&&) = delete;
+	ThreadPoolHandler(const ThreadPoolHandler&) = delete;
+	ThreadPoolHandler(ThreadPoolHandler&&) = delete;
 	
-	template <typename OutputIterator>
-	void append_join_task(auto lhelper, auto rhelper, auto lit, auto lend, auto rit, auto rend, OutputIterator output)
+	void append_task(std::function<void(int)>&& func) override
 	{
 #ifdef _DEBUG_NO_PARALLEL
-		partial_forward_skip_join(lhelper, rhelper, lit, lend, rit, rend, output);
+		func(0);
 #else
-		_p.push([lhelper, rhelper, lit, lend, rit, rend, output](int /*id*/) {
-			partial_forward_skip_join(lhelper, rhelper, lit, lend, rit, rend, output);
-		});
+		_p.push(std::forward<std::function<void(int)>>(func));
 #endif
 	}
 
-	template <typename OutputIterator>
-	void append_spill_over_task(auto helper, auto&& range_after, auto lit, auto lend, auto rit, auto rend, OutputIterator output)
-	{
-#ifdef _DEBUG_NO_PARALLEL
-		spill_over_join(lit, lend, rit, rend, output);
-#else
-		_p.push([range_after = std::move(range_after), helper, lit, lend, rit, rend, output](int /*id*/) {
-			spill_over_join(lit, lend, rit, rend, output);
-		});
-#endif
-	}
 
 	void join() {
 		_p.stop(true);
@@ -124,7 +115,37 @@ private:
 };
 
 
-static std::shared_ptr<JoinTaskConsumer> join_task_consumer;
+class ThreadsHandler : public JoinTaskHandler
+{
+public:
+	ThreadsHandler() {}
+	ThreadsHandler(const ThreadsHandler&) = delete;
+	ThreadsHandler(ThreadsHandler&&) = delete;
+
+
+	void append_task(std::function<void(int)>&& func) override
+	{
+#ifdef _DEBUG_NO_PARALLEL
+		func(0);
+#else
+		_threads.emplace_back(std::forward<std::function<void(int)>>(func), _threads_count++);
+#endif
+	}
+
+
+	void join() {
+		for (auto& t : _threads) {
+			t.join();
+		}
+	}
+
+private:
+	int _threads_count = 0;
+	std::vector<std::thread> _threads;
+};
+
+
+static JoinTaskHandler* join_task_consumer = nullptr;
 
 
 template<typename ValueType>
@@ -151,7 +172,7 @@ ValueType get_val(auto it, std::optional<std::size_t> const& offset, std::size_t
 /// <param name="ridx"></param>
 /// <returns></returns>
 template<typename Iterator>
-bool index_compare(Iterator const& lit, Iterator const& rit,
+bool index_compare(Iterator lit, Iterator rit,
 	std::optional<std::size_t> const& lidx, 
 	std::optional<std::size_t> const& ridx,
 	std::size_t const lsize, std::size_t const rsize)
@@ -174,7 +195,7 @@ bool index_compare(Iterator const& lit, Iterator const& rit,
 /// <param name="m1"></param>
 /// <param name="m2"></param>
 /// <returns></returns>
-auto find_median(auto const& lit, auto lend, auto const& rit, auto rend, bool exit = false) 
+auto find_median(auto lit, auto lend, auto rit, auto rend, bool exit = false) 
 {
 	std::size_t m1_size = std::distance(lit, lend);
 	std::size_t m2_size = std::distance(rit, rend);
@@ -216,14 +237,16 @@ auto find_median(auto const& lit, auto lend, auto const& rit, auto rend, bool ex
 
 
 template <typename EventType>
-void recursive_join(std::size_t const f, auto lhelper, auto rhelper, auto lit, auto lend, auto rit, auto rend, auto output)
+void recursive_join(std::size_t const f, auto lhelper, auto rhelper, auto lit, auto lend, auto rit, auto rend, auto output, std::mutex* output_lock)
 {
 	if (lit == lend || rit == rend) {
 		return;
 	}
 
 	if (f == 1) {
-		join_task_consumer->append_join_task(lhelper, rhelper, lit, lend, rit, rend, output);
+		join_task_consumer->append_task([lhelper, rhelper, lit, lend, rit, rend, output, output_lock](int /*i*/ ) {
+			partial_forward_skip_join(lhelper, rhelper, lit, lend, rit, rend, output, output_lock);
+		});
 	} else { 
 		using namespace temporal_join_details;
 
@@ -238,13 +261,17 @@ void recursive_join(std::size_t const f, auto lhelper, auto rhelper, auto lit, a
 		auto rmid_it = rhelper->stab_search(m_val, std::back_inserter(r_range_after));
 
 		// join all events in llow that need to join with rhigh
-		join_task_consumer->append_spill_over_task(rhelper, l_range_after, l_range_after.cbegin(), l_range_after.cend(), rmid_it, rend, output);
+		join_task_consumer->append_task([l_range_after, rmid_it, rend, output, output_lock](int /*i*/) {
+			spill_over_join(l_range_after.cbegin(), l_range_after.cend(), rmid_it, rend, output, output_lock);
+		});
 		// join all events in rlow that need to join with lhigh
-		join_task_consumer->append_spill_over_task(lhelper, r_range_after, lmid_it, lend, r_range_after.cbegin(), r_range_after.cend(), output);
+		join_task_consumer->append_task([r_range_after, lmid_it, lend, output, output_lock](int /*i*/) {
+			spill_over_join(lmid_it, lend, r_range_after.cbegin(), r_range_after.cend(), output, output_lock);
+		});
 
 		//join llow & rlow, lhigh & rhigh
-		recursive_join<EventType>(f - 1, lhelper, rhelper, lit, lmid_it, rit, rmid_it, output);
-		recursive_join<EventType>(f - 1, lhelper, rhelper, lmid_it, lend, rmid_it, rend, output);
+		recursive_join<EventType>(f - 1, lhelper, rhelper, lit, lmid_it, rit, rmid_it, output, output_lock);
+		recursive_join<EventType>(f - 1, lhelper, rhelper, lmid_it, lend, rmid_it, rend, output, output_lock);
 	}
 };
 
@@ -253,7 +280,13 @@ template <typename Forest, typename OutputIterator, typename JumpPolicyL, typena
 void parallel_join(std::size_t n_threads, std::size_t const f, Forest const& lhs, Forest const& rhs,
 	OutputIterator output, const JumpPolicyL& policy_l, const JumpPolicyR& policy_r)
 {
-	join_task_consumer = std::make_shared<JoinTaskConsumer>(n_threads);
+	if (join_task_consumer) {
+		join_task_consumer->join();
+		delete join_task_consumer;
+	}
+
+	// join_task_consumer = new ThreadPoolHandler(n_threads);
+	join_task_consumer = new ThreadsHandler();
 
 	using namespace temporal_join_details;
 
@@ -268,6 +301,11 @@ void parallel_join(std::size_t n_threads, std::size_t const f, Forest const& lhs
 	auto lend = lhs.cend();
 	auto rend = rhs.cend();
 
-	recursive_join<typename Forest::event>(f, lhelper, rhelper, lit, lend, rit, rend, output);
+	std::mutex output_lock = std::mutex();
+
+	recursive_join<typename Forest::event>(f, lhelper, rhelper, lit, lend, rit, rend, output, &output_lock);
+	
 	join_task_consumer->join();
+	delete join_task_consumer;
+	join_task_consumer = nullptr;
 };

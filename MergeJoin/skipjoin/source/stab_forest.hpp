@@ -843,7 +843,7 @@ public:
         policy_stab_forward(value, *this);
     }
 
-    void stab_forward(const timestamp value, const_iterator it)
+    void stab_forward(const timestamp value, const_iterator* it)
     {
         policy_stab_forward(value, *this, it);
     }
@@ -899,9 +899,9 @@ private:
         index_stab_forward(value, &event_list_it);
     }
 
-    void policy_stab_forward(const timestamp value, const stab_forward_index&, const_iterator it)
+    void policy_stab_forward(const timestamp value, const stab_forward_index&, const_iterator* it)
     {
-        index_stab_forward(value, &it);
+        index_stab_forward(value, it);
     }
 
     void policy_stab_forward(const timestamp value, const stab_forward_list&)
@@ -909,9 +909,9 @@ private:
         list_stab_forward(value, &event_list_it);
     }
 
-    void policy_stab_forward(const timestamp value, const stab_forward_list&, const_iterator it)
+    void policy_stab_forward(const timestamp value, const stab_forward_list&, const_iterator* it)
     {
-        list_stab_forward(value, &it);
+        list_stab_forward(value, it);
     }
 
     void policy_stab_forward(const timestamp value, const stab_forward_check& c)
