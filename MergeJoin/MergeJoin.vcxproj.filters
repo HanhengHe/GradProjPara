@@ -32,5 +32,8 @@
     <ClInclude Include="ctpl_stl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="parallelskipjoinhelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,21 +1,18 @@
 #pragma once
 
-#include <queue>
-#include <thread>
-#include "ctpl.h"
-#include <mutex>
 #include <optional>
 
 #include "skipjoin/source/stab_forest.hpp"
 #include "skipjoin/source/temporal_join.hpp"
-
+#include "parallelskipjoinhelper.h"
 
 // #define _DEBUG_NO_PARALLEL
+
 
 /**
  * Standard sweep-based forward-scan join with skipping.
  */
-void partial_forward_skip_join(auto lhelper, auto rhelper, auto lit, auto lend, auto rit, auto rend, auto output, std::mutex* output_lock)
+void partial_forward_skip_join(auto lhelper, auto rhelper, auto lit, auto lend, auto rit, auto rend, auto output)
 {
 	if (lit == lend || rit == rend) {
 		return;
@@ -33,7 +30,6 @@ void partial_forward_skip_join(auto lhelper, auto rhelper, auto lit, auto lend, 
 			stab_left_rj.set_iterator(rit);
 			if (rit->start <= lit->end)
 			{
-				const std::lock_guard<std::mutex> lock(*output_lock);
 				stab_left_rj.push_back(*lit);
 				++lit;
 			}
@@ -47,7 +43,6 @@ void partial_forward_skip_join(auto lhelper, auto rhelper, auto lit, auto lend, 
 			stab_right_rj.set_iterator(lit);
 			if (lit->start <= rit->end)
 			{
-				const std::lock_guard<std::mutex> lock(*output_lock);
 				stab_right_rj.push_back(*rit);
 				++rit;
 			}
@@ -60,7 +55,7 @@ void partial_forward_skip_join(auto lhelper, auto rhelper, auto lit, auto lend, 
 }
 
 
-void spill_over_join(auto lit, auto lend, auto rit, auto rend, auto output, std::mutex* output_lock)
+void spill_over_join(auto lit, auto lend, auto rit, auto rend, auto output)
 {// check if rhs is sorted on start time.
 	if (lit == lend || rit == rend) {
 		return;
@@ -71,78 +66,12 @@ void spill_over_join(auto lit, auto lend, auto rit, auto rend, auto output, std:
 	auto stab_rj = make_stab_result_join<join_1>(rend, output);
 	stab_rj.set_iterator(rit);
 
-	const std::lock_guard<std::mutex> lock(*output_lock);
 	while (lit != lend)
 	{
 		stab_rj.push_back(*lit);
 		++lit;
 	}
 }
-
-
-class JoinTaskHandler {
-public:
-	virtual void append_task(std::function<void(int)>&&) = 0;
-	virtual void join() = 0;
-};
-
-
-class ThreadPoolHandler : public JoinTaskHandler
-{
-public:
-	ThreadPoolHandler(std::size_t num_threads)
-		: _p(ctpl::thread_pool((int)num_threads)){}
-
-	ThreadPoolHandler(const ThreadPoolHandler&) = delete;
-	ThreadPoolHandler(ThreadPoolHandler&&) = delete;
-	
-	void append_task(std::function<void(int)>&& func) override
-	{
-#ifdef _DEBUG_NO_PARALLEL
-		func(0);
-#else
-		_p.push(std::forward<std::function<void(int)>>(func));
-#endif
-	}
-
-
-	void join() {
-		_p.stop(true);
-	}
-
-private:
-	ctpl::thread_pool _p;
-};
-
-
-class ThreadsHandler : public JoinTaskHandler
-{
-public:
-	ThreadsHandler() {}
-	ThreadsHandler(const ThreadsHandler&) = delete;
-	ThreadsHandler(ThreadsHandler&&) = delete;
-
-
-	void append_task(std::function<void(int)>&& func) override
-	{
-#ifdef _DEBUG_NO_PARALLEL
-		func(0);
-#else
-		_threads.emplace_back(std::forward<std::function<void(int)>>(func), _threads_count++);
-#endif
-	}
-
-
-	void join() {
-		for (auto& t : _threads) {
-			t.join();
-		}
-	}
-
-private:
-	int _threads_count = 0;
-	std::vector<std::thread> _threads;
-};
 
 
 static JoinTaskHandler* join_task_consumer = nullptr;
@@ -237,15 +166,15 @@ auto find_median(auto lit, auto lend, auto rit, auto rend, bool exit = false)
 
 
 template <typename EventType>
-void recursive_join(std::size_t const f, auto lhelper, auto rhelper, auto lit, auto lend, auto rit, auto rend, auto output, std::mutex* output_lock)
+void recursive_join(std::size_t const f, auto lhelper, auto rhelper, auto lit, auto lend, auto rit, auto rend, auto output)
 {
 	if (lit == lend || rit == rend) {
 		return;
 	}
 
 	if (f == 1) {
-		join_task_consumer->append_task([lhelper, rhelper, lit, lend, rit, rend, output, output_lock](int /*i*/ ) {
-			partial_forward_skip_join(lhelper, rhelper, lit, lend, rit, rend, output, output_lock);
+		join_task_consumer->append_task([lhelper, rhelper, lit, lend, rit, rend, output](int /*i*/ ) {
+			partial_forward_skip_join(lhelper, rhelper, lit, lend, rit, rend, output);
 		});
 	} else { 
 		using namespace temporal_join_details;
@@ -261,17 +190,17 @@ void recursive_join(std::size_t const f, auto lhelper, auto rhelper, auto lit, a
 		auto rmid_it = rhelper->stab_search(m_val, std::back_inserter(r_range_after));
 
 		// join all events in llow that need to join with rhigh
-		join_task_consumer->append_task([l_range_after, rmid_it, rend, output, output_lock](int /*i*/) {
-			spill_over_join(l_range_after.cbegin(), l_range_after.cend(), rmid_it, rend, output, output_lock);
+		join_task_consumer->append_task([l_range_after, rmid_it, rend, output](int /*i*/) {
+			spill_over_join(l_range_after.cbegin(), l_range_after.cend(), rmid_it, rend, output);
 		});
 		// join all events in rlow that need to join with lhigh
-		join_task_consumer->append_task([r_range_after, lmid_it, lend, output, output_lock](int /*i*/) {
-			spill_over_join(lmid_it, lend, r_range_after.cbegin(), r_range_after.cend(), output, output_lock);
+		join_task_consumer->append_task([r_range_after, lmid_it, lend, output](int /*i*/) {
+			spill_over_join(lmid_it, lend, r_range_after.cbegin(), r_range_after.cend(), output);
 		});
 
 		//join llow & rlow, lhigh & rhigh
-		recursive_join<EventType>(f - 1, lhelper, rhelper, lit, lmid_it, rit, rmid_it, output, output_lock);
-		recursive_join<EventType>(f - 1, lhelper, rhelper, lmid_it, lend, rmid_it, rend, output, output_lock);
+		recursive_join<EventType>(f - 1, lhelper, rhelper, lit, lmid_it, rit, rmid_it, output);
+		recursive_join<EventType>(f - 1, lhelper, rhelper, lmid_it, lend, rmid_it, rend, output);
 	}
 };
 
@@ -289,6 +218,7 @@ void parallel_join(std::size_t n_threads, std::size_t const f, Forest const& lhs
 	join_task_consumer = new ThreadsHandler();
 
 	using namespace temporal_join_details;
+	using EventType = typename Forest::event;
 
 	auto stab_left_rj = make_stab_result_join<join_1>(rhs.cend(), output);
 	auto stab_right_rj = make_stab_result_join<join_2>(lhs.cend(), output);
@@ -301,9 +231,7 @@ void parallel_join(std::size_t n_threads, std::size_t const f, Forest const& lhs
 	auto lend = lhs.cend();
 	auto rend = rhs.cend();
 
-	std::mutex output_lock = std::mutex();
-
-	recursive_join<typename Forest::event>(f, lhelper, rhelper, lit, lend, rit, rend, output, &output_lock);
+	recursive_join<EventType>(f, lhelper, rhelper, lit, lend, rit, rend, output);
 	
 	join_task_consumer->join();
 	delete join_task_consumer;
