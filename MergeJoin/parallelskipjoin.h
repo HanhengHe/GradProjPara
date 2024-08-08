@@ -12,7 +12,7 @@
 /**
  * Standard sweep-based forward-scan join with skipping.
  */
-void partial_forward_skip_join(auto lhelper, auto rhelper, auto lit, auto lend, auto rit, auto rend, auto output)
+void partial_forward_skip_join(auto const& lhs, auto const& rhs, auto lit, auto lend, auto rit, auto rend, auto output, auto const& policy_l, auto const& policy_r)
 {
 	if (lit == lend || rit == rend) {
 		return;
@@ -22,6 +22,9 @@ void partial_forward_skip_join(auto lhelper, auto rhelper, auto lit, auto lend, 
 
 	auto stab_left_rj = make_stab_result_join<join_1>(rend, output);
 	auto stab_right_rj = make_stab_result_join<join_2>(lend, output);
+
+	auto lhelper = lhs.stab_forward_search_shared(std::back_inserter(stab_left_rj), policy_l);
+	auto rhelper = rhs.stab_forward_search_shared(std::back_inserter(stab_right_rj), policy_r);
 
 	while (lit != lend && rit != rend)
 	{
@@ -166,20 +169,28 @@ auto find_median(auto lit, auto lend, auto rit, auto rend, bool exit = false)
 
 
 template <typename EventType>
-void recursive_join(std::size_t const f, auto lhelper, auto rhelper, auto lit, auto lend, auto rit, auto rend, auto output)
+void recursive_join(std::size_t const f, auto const& lhs, auto const& rhs, auto lit, auto lend, auto rit, auto rend, auto& outputs, auto const& policy_l, auto const& policy_r)
 {
 	if (lit == lend || rit == rend) {
 		return;
 	}
 
 	if (f == 1) {
-		join_task_consumer->append_task([lhelper, rhelper, lit, lend, rit, rend, output](int /*i*/ ) {
-			partial_forward_skip_join(lhelper, rhelper, lit, lend, rit, rend, output);
+		auto output_it = outputs.get_iterator();
+		join_task_consumer->append_task([&lhs, &rhs, lit, lend, rit, rend, output_it, &policy_l, &policy_r](int /*i*/) {
+			partial_forward_skip_join(lhs, rhs, lit, lend, rit, rend, output_it, policy_l, policy_r);
 		});
 	} else { 
 		using namespace temporal_join_details;
 
 		auto m_val = find_median(lit, lend, rit, rend);
+
+		auto output_it = outputs.get_iterator();
+		auto stab_left_rj = make_stab_result_join<join_1>(rend, output_it);
+		auto stab_right_rj = make_stab_result_join<join_2>(lend, output_it);
+
+		auto lhelper = lhs.stab_forward_search_shared(std::back_inserter(stab_left_rj), policy_l);
+		auto rhelper = rhs.stab_forward_search_shared(std::back_inserter(stab_right_rj), policy_r);
 
 		// llow = [lit, lmid_it); lhigh = [lmid_it, lend)
 		std::vector<EventType> l_range_after;  // holds all events in llow that need to join with rhigh
@@ -190,24 +201,26 @@ void recursive_join(std::size_t const f, auto lhelper, auto rhelper, auto lit, a
 		auto rmid_it = rhelper->stab_search(m_val, std::back_inserter(r_range_after));
 
 		// join all events in llow that need to join with rhigh
-		join_task_consumer->append_task([l_range_after, rmid_it, rend, output](int /*i*/) {
-			spill_over_join(l_range_after.cbegin(), l_range_after.cend(), rmid_it, rend, output);
+		output_it = outputs.get_iterator();
+		join_task_consumer->append_task([l_range_after, rmid_it, rend, output_it](int /*i*/) {
+			spill_over_join(l_range_after.cbegin(), l_range_after.cend(), rmid_it, rend, output_it);
 		});
 		// join all events in rlow that need to join with lhigh
-		join_task_consumer->append_task([r_range_after, lmid_it, lend, output](int /*i*/) {
-			spill_over_join(lmid_it, lend, r_range_after.cbegin(), r_range_after.cend(), output);
+		output_it = outputs.get_iterator();
+		join_task_consumer->append_task([r_range_after, lmid_it, lend, output_it](int /*i*/) {
+			spill_over_join(lmid_it, lend, r_range_after.cbegin(), r_range_after.cend(), output_it);
 		});
 
 		//join llow & rlow, lhigh & rhigh
-		recursive_join<EventType>(f - 1, lhelper, rhelper, lit, lmid_it, rit, rmid_it, output);
-		recursive_join<EventType>(f - 1, lhelper, rhelper, lmid_it, lend, rmid_it, rend, output);
+		recursive_join<EventType>(f - 1, lhs, rhs, lit, lmid_it, rit, rmid_it, outputs, policy_l, policy_r);
+		recursive_join<EventType>(f - 1, lhs, rhs, lmid_it, lend, rmid_it, rend, outputs, policy_l, policy_r);
 	}
 };
 
 
-template <typename Forest, typename OutputIterator, typename JumpPolicyL, typename JumpPolicyR>
+template <typename Forest, typename Outputs, typename JumpPolicyL, typename JumpPolicyR>
 void parallel_join(std::size_t n_threads, std::size_t const f, Forest const& lhs, Forest const& rhs,
-	OutputIterator output, const JumpPolicyL& policy_l, const JumpPolicyR& policy_r)
+	Outputs& outputs, const JumpPolicyL& policy_l, const JumpPolicyR& policy_r)
 {
 	if (join_task_consumer) {
 		join_task_consumer->join();
@@ -220,18 +233,7 @@ void parallel_join(std::size_t n_threads, std::size_t const f, Forest const& lhs
 	using namespace temporal_join_details;
 	using EventType = typename Forest::event;
 
-	auto stab_left_rj = make_stab_result_join<join_1>(rhs.cend(), output);
-	auto stab_right_rj = make_stab_result_join<join_2>(lhs.cend(), output);
-
-	auto lhelper = lhs.stab_forward_search_shared(std::back_inserter(stab_left_rj), policy_l);
-	auto rhelper = rhs.stab_forward_search_shared(std::back_inserter(stab_right_rj), policy_r);
-
-	auto lit = (*lhelper).get_iterator();
-	auto rit = (*rhelper).get_iterator();
-	auto lend = lhs.cend();
-	auto rend = rhs.cend();
-
-	recursive_join<EventType>(f, lhelper, rhelper, lit, lend, rit, rend, output);
+	recursive_join<EventType>(f, lhs, rhs, lhs.cbegin(), lhs.cend(), rhs.cbegin(), rhs.cend(), outputs, policy_l, policy_r);
 	
 	join_task_consumer->join();
 	delete join_task_consumer;

@@ -4,57 +4,29 @@
 
 
 template <typename OutputIterator, typename EventType>
-class ParallelOutputIterator
+class ParallelOutputHelper
 {
 public:
-	ParallelOutputIterator(std::unordered_map<std::thread::id, OutputIterator>* it_map, std::list<std::vector<std::pair<EventType, EventType>>>* outputs, std::mutex* it_lock)
-		: _it_map(it_map), _outputs(outputs), _it_lock(it_lock) {}
+	ParallelOutputHelper() {};
 
-	ParallelOutputIterator(ParallelOutputIterator&&) = delete;
-
-	ParallelOutputIterator(ParallelOutputIterator const& other)
-	{
-		if (this == &other) {
-			return;
-		}
-		_it_lock = other._it_lock;
-		_it_map = other._it_map;
-		_outputs = other._outputs;
-	}
+	ParallelOutputHelper(ParallelOutputHelper&&) = delete;
+	ParallelOutputHelper(ParallelOutputHelper const& other) = delete;
 
 	void merge_output(std::vector<std::pair<EventType, EventType>>& output)
 	{
-		for (const auto& output_list : *_outputs) {
+		for (const auto& output_list : _outputs) {
 			output.insert(output.end(), output_list.cbegin(), output_list.cend());
 		}
 	}
 
-	auto& operator*()
+	OutputIterator get_iterator()
 	{
-		return get_iterator().operator*();
+		_outputs.emplace_back();
+		return std::back_inserter(_outputs.back());
 	}
 
 private:
-	OutputIterator get_iterator()
-	{
-		auto thread_id = std::this_thread::get_id();
-		auto it = _it_map->find(thread_id);
-		if (it == _it_map->cend()) {
-			_it_lock->lock();
-			_outputs->emplace_back();
-			auto output_it = std::back_inserter(_outputs->back());
-			_it_map->insert({ thread_id, output_it });
-			_it_lock->unlock();
-			return output_it;
-		}
-		else {
-			return it->second;
-		}
-	}
-
-	std::unordered_map<std::thread::id, OutputIterator>* _it_map;
-	std::list<std::vector<std::pair<EventType, EventType>>>* _outputs;
-	std::mutex* _it_lock;
+	std::list<std::vector<std::pair<EventType, EventType>>> _outputs;
 };
 
 

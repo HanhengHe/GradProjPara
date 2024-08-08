@@ -78,18 +78,15 @@ measure_parallel_skip_join(const size_t n_threads, const size_t f, const StabFor
     using event = typename StabForest::event;
     using OutputIterator = std::back_insert_iterator<std::vector<std::pair<event, event>>>;
 
-    std::unordered_map<std::thread::id, OutputIterator> it_map;
-    std::list<std::vector<std::pair<event, event>>> outputs;
-    std::mutex it_lock;
-    ParallelOutputIterator<OutputIterator, event> output_it(&it_map, &outputs, &it_lock);
-    // OutputIt output_it = std::back_inserter(output);
+    ParallelOutputHelper<OutputIterator, event> outputs;
 
     auto start = high_resolution_clock::now();
-    parallel_join(n_threads, f, lhs, rhs, output_it, policy_l, policy_r);
+    parallel_join(n_threads, f, lhs, rhs, outputs, policy_l, policy_r);
     auto end = high_resolution_clock::now();
 
     std::vector<std::pair<event, event>> output;
-    output_it.merge_output(output);
+    outputs.merge_output(output);
+    std::sort(output.begin(), output.end(), [](auto const& l, auto const& r) {return l.first.start < r.first.start; });
     std::cerr << '\t' << output.size();
     return duration_cast<milliseconds>(end - start).count();
 }
